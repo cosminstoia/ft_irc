@@ -33,6 +33,7 @@ int main(int ac, char *av[])
     try
     {
         Server server(port, password);
+        server.setup();
         server.start();
     }
     catch(const std::exception& e)
@@ -40,5 +41,7 @@ int main(int ac, char *av[])
         std::cerr << "Server error: " << e.what() << std::endl;
     }
     std::cout << "Port: " << port << " Password: " << password << std::endl;
+
+    
     return 0;
 }

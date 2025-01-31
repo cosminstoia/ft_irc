@@ -1,28 +1,71 @@
+CXX = c++
+CXXFLAGS = -Wall -Wextra -Werror -std=c++17 -I$(INCDIR) -g
 
-SRCS =	main.c init_env.c clean_fd.c get_opt.c x.c main_loop.c \
-	init_fd.c do_select.c check_fd.c \
-	srv_create.c srv_accept.c \
-	client_read.c client_write.c
+NAME = ircserv
 
-OBJS = ${SRCS:.c=.o}
+SRCDIR = srcs
+INCDIR = inc
+OBJDIR = obj
 
-NAME = bircd
+SRCS = $(wildcard $(SRCDIR)/*.cpp)
+OBJS = $(SRCS:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
-CFLAGS = -I. -g3 -Wall -Werror
-LDFLAGS = 
+GREEN=\033[0;32m
+RED=\033[0;31m
+NC=\033[0m
 
-CC = gcc
-RM = rm -f
+all: $(NAME)
+	@echo "$(GREEN)Build successful$(NC)"
 
-${NAME}:	${OBJS}
-		${CC} -o ${NAME} ${OBJS} ${LDFLAGS}
+$(NAME): $(OBJS)
+	@echo "$(GREEN)Linking object files$(NC)"
+	$(CXX) $(OBJS) -o $@
 
-all:		${NAME}
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
+	@echo "$(GREEN)Compiling $<$(NC)"
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(OBJDIR):
+	@mkdir -p $(OBJDIR)
 
 clean:
-		${RM} ${OBJS} *~ #*#
+	@echo "$(RED)Cleaning up$(NC)"
+	rm -rf $(OBJDIR)
+	rm -rf *.dSYM
 
-fclean:		clean
-		${RM} ${NAME}
+fclean: clean
+	@echo "$(RED)Force cleaning$(NC)"
+	rm -f $(NAME)
 
-re:		fclean all
+re: fclean all
+	@echo "$(GREEN)Rebuild complete$(NC)"
+
+.PHONY: all clean fclean re
+
+# SRCS =	main.c init_env.c clean_fd.c get_opt.c x.c main_loop.c \
+# 	init_fd.c do_select.c check_fd.c \
+# 	srv_create.c srv_accept.c \
+# 	client_read.c client_write.c
+
+# OBJS = ${SRCS:.c=.o}
+
+# NAME = bircd
+
+# CFLAGS = -I. -g3 -Wall -Werror
+# LDFLAGS = 
+
+# CC = gcc
+# RM = rm -f
+
+# ${NAME}:	${OBJS}
+# 		${CC} -o ${NAME} ${OBJS} ${LDFLAGS}
+
+# allc:		${NAME}
+
+# clean:
+# 		${RM} ${OBJS} *~ #*#
+
+# fclean:		clean
+# 		${RM} ${NAME}
+
+# re:		fclean all

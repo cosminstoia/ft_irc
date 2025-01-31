@@ -37,6 +37,52 @@ void Server::setup()
 
     if (listen(serverSocket_, 5) < 0)
         printErrorExit("Error listening...");
+    
+    std::cout << "__        _______ _     ____ ___  __  __ _____ \n";
+    std::cout << "\\ \\      / / ____| |   / ___/ _ \\|  \\/  | ____|\n";
+    std::cout << " \\ \\ /\\ / /|  _| | |  | |  | | | | |\\/| |  _|  \n";
+    std::cout << "  \\ V  V / | |___| |__| |__| |_| | |  | | |___ \n";
+    std::cout << "   \\_/\\_/  |_____|_____\\____\\___/|_|  |_|_____|\n\n";
 
     std::cout << "Listening on port " << port_ << "..." << std::endl;
+}
+
+
+void Server::start() 
+{
+    fd_set readfds;
+    while (true) {
+        FD_ZERO(&readfds);
+        FD_SET(serverSocket_, &readfds);
+
+        select(serverSocket_ + 1, &readfds, NULL, NULL, NULL);
+
+        if (FD_ISSET(serverSocket_, &readfds)) {
+            acceptClient();
+        }
+    }
+}
+
+void Server::acceptClient() 
+{
+    int clientSocket = accept(serverSocket_, NULL, NULL);
+    if (clientSocket < 0) {
+        std::cerr << "Accept failed" << std::endl;
+        return;
+    }
+    // clientSocket.push_back(clientSocket);
+    std::cout << "New client connected" << std::endl;
+}
+
+void Server::handleClient(int clientSocket) 
+{
+    char buffer[1024];
+    int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+    if (bytesRead <= 0) {
+        close(clientSocket);
+        return;
+    }
+    // Basic message handling
+    buffer[bytesRead] = '\0';
+    std::cout << "Received: " << buffer << std::endl;
 }
