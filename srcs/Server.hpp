@@ -11,6 +11,9 @@
 #include <ctime>
 #include <iomanip>
 #include <arpa/inet.h>
+#include <fcntl.h>
+#include <map>
+#include <set>
 
 #include "Client.hpp"
 
@@ -46,7 +49,7 @@ class Server
         void       start();
         void       printErrorExit(std::string const& msg, bool exitP = false);
         void       printInfo(messageType type, std::string const& msg);
-        void       acceptClient();
+        void       acceptClient(std::vector<pollfd>& pollFds_);
         void       handleClient(int clientSocket);
         // void       executeCommand(int clientSocket, const std::string &command);
 
@@ -56,5 +59,14 @@ class Server
         int         serverSocket_;             // Server socket file descriptor
         struct sockaddr_in serverAddr_;        // Server address
         std::vector<int> clientSockets_;       // Client socket file descriptors
-        // std::string getIPAddress();
+        std::string serverIp_;                 // Server IP address
+        std::vector<pollfd> pollFds_;           // Poll file descriptors
+
+
+        //methods
+        void        executeCommand(int clientSocket, std::string const& command);
+        void        sendToClient(int clientSocket, std::string const& message);
+        bool        isCommand(std::string const& message);
+
+        std::map<int, std::string> clients_; // map client sockets
 };

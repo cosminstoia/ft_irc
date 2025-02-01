@@ -3,6 +3,7 @@
 Server::Server(int port, std::string password) : port_(port), password_(password)
 {
     serverSocket_ = -1; // init to -1 adn set up in setup()
+    serverIp_ = "nop";
 }
 
 Server::~Server()
@@ -84,8 +85,10 @@ void Server::setup()
 {
     serverSocket_ = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket_ < 0)
-        printErrorExit("Establishing socket...");
+        printErrorExit("Establishing socket...", true);
     
+    fcntl(serverSocket_, F_SETFL, O_NONBLOCK); //allow formula
+
     printInfo(INFO, "Socket server has been created.");
 
     serverAddr_.sin_family = AF_INET;
@@ -114,21 +117,32 @@ void Server::start()
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░)" << std::endl;
     printInfo(INFO, "Server listening on ip:port " + std::to_string(port_));
     printInfo(INFO, "Waiting for conections...");
-    fd_set readfds;
-    while (true) // or sometign lieka bool 
+    while (true) // or sometign like bool isRunning = true; while (isRunning)
     {
-        FD_ZERO(&readfds);
-        FD_SET(serverSocket_, &readfds);
-        select(serverSocket_ + 1, &readfds, NULL, NULL, NULL);
-
-        if (FD_ISSET(serverSocket_, &readfds))
+        int ret = poll(pollFds_.data(), pollFds_.size(), -1);
+        if (ret < 0)
         {
-            acceptClient();
+            printErrorExit("Poll failed!", false);
+            continue;
+        }
+        for (size_t i = 0; i < pollFds_.size(); i++)
+        {
+            if (pollFds_[i].revents & POLLIN)
+            {
+                if (pollFds_[i].fd == serverSocket_)
+                {
+                    acceptClient(pollFds_);
+                }
+                else
+                {
+                    handleClient(pollFds_[i].fd);
+                }
+            }
         }
     }
 }
 
-void Server::acceptClient() 
+void Server::acceptClient(std::vector<pollfd>& pollFds_) 
 {
     int clientSocket = accept(serverSocket_, NULL, NULL);
     if (clientSocket < 0)
@@ -136,8 +150,15 @@ void Server::acceptClient()
         printErrorExit("Accept failed!", false);
         return;
     }
-    // clientSocket.push_back(clientSocket);
-    printInfo(INFO, "New client connected.");
+
+    fcntl(clientSocket, F_SETFL, O_NONBLOCK);
+
+    
+    pollfd clientPollFd = {clientSocket, POLLIN, 0};
+    pollFds_.push_back(clientPollFd);
+
+    printInfo(CONNECTION, "New client connected.");
+
 }
 
 void Server::handleClient(int clientSocket) 
@@ -147,10 +168,48 @@ void Server::handleClient(int clientSocket)
     if (bytesRead <= 0)
     {
         close(clientSocket);
-        printInfo(INFO, "Client disconnected");
+        printInfo(INFO, "Client disconnected!");
+
+        for (size_t i = 0; i < pollFds_.size(); i++)
+        {
+            if (pollFds_[i].fd == clientSocket)
+            {
+                pollFds_.erase(pollFds_.begin() + i);
+                break;
+            }
+        }
         return;
     }
+
     // Basic message handling
+
     buffer[bytesRead] = '\0';
-    printInfo(CLIENT, std::string("Received: ") + buffer);
+    std::string message(buffer);
+    printInfo(CLIENT, std::string("Received: ") + message);
+
+    // Parse message and if cmd execute it
+    // so we need to check the msg and if comdn to execut it
+    // i am thinkg if the comnd shave a prefix like / or ! or something 
+    // then is easy, we pass the word to a function that will execute the command
+}
+
+
+void Server::sendToClient(int clientSocket, const std::string &message)
+{
+    std::string fullMessage = message + "\r\n";
+    send(clientSocket, fullMessage.c_str(), fullMessage.length(), 0);
+}
+
+bool Server::isCommand(const std::string &input)
+{
+    std::istringstream iss(input);
+    std::string command;
+    iss >> command;
+
+    const std::set<std::string> validCommands =
+    {
+        "NICK", "USER", "JOIN", "PRIVMSG", "QUIT", "PING"
+    };
+
+    return validCommands.find(command) != validCommands.end();
 }
