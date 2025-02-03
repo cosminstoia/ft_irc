@@ -12,16 +12,19 @@ Server::Server(int port,std::string const& password)
     isRunning_ = true;
     instance = this; // to be able to use in signal handler
 
-    //setup server address
-    serverSocket_ = socket(AF_INET, SOCK_STREAM, 0);
+    serverSocket_ = socket(AF_INET, SOCK_STREAM, 0);     //setup server address
     if (serverSocket_ < 0)
         printErrorExit("Socket creation failed!", true);
 
-    // non blocking mode
-    fcntl(serverSocket_, F_SETFL, O_NONBLOCK); // check adn close fd if or descturcod doesa ll thsi
-    printInfo(INFO, "Socket server created.");
+    int opt = 1;
+    if (setsockopt(serverSocket_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+        printErrorExit("Failed to set socket options!", true);
 
-    //coonfigure server address
+    // only run in non-blocking mode. to be able to handle multiple clients
+    if (fcntl(serverSocket_, F_SETFL, O_NONBLOCK) < 0) 
+        printErrorExit("Failed to set socket to non-blocking mode!", true);
+
+    //configure server address
     serverAddr_.sin_family = AF_INET;
     serverAddr_.sin_addr.s_addr = INADDR_ANY;
     serverAddr_.sin_port = htons(port_);
@@ -31,7 +34,7 @@ Server::Server(int port,std::string const& password)
         printErrorExit("Bind failed!", true);
 
     //listen for connections
-    if (listen(serverSocket_, 5) < 0)
+    if (listen(serverSocket_, MAX_Q_CLIENTS) < 0)
         printErrorExit("Listen failed!", true);
     
     printInfo(INFO, "Server listening on ip:port " + std::to_string(port_));
@@ -49,7 +52,7 @@ Server::~Server()
         if (clientFd.fd >= 0)
             close(clientFd.fd);
     }
-    instance = nullptr;     // reset the static instance
+    instance = nullptr; // reset the static instance
 }
 
 void Server::printErrorExit(std::string const& msg, bool exitP)
@@ -75,12 +78,6 @@ void Server::printInfo(messageType type, std::string const& msg, int clientSocke
         case WARNING:   typeStr = "WARNING";    color = YELLOW; break;
         case CONNECTION:typeStr = "CONNECTION"; color = GREEN;  break;
         case DISCONNECTION: typeStr = "DISCONNECTION"; color = RED; break;
-        case PING:      typeStr = "PING";       color = GREEN; break;
-        case PONG:      typeStr = "PONG";       color = GREEN; break;
-        case CLIENT:    typeStr = "CLIENT";     color = BLUE; break;
-        case SERVER:    typeStr = "SERVER";     color = BLUE; break;
-        case TIMEOUT:   typeStr = "TIMEOUT";    color = RED; break;
-        case SUCCESS:   typeStr = "SUCCESS";    color = GREEN; break;
         default:        typeStr = "UNKNOWN";    color = RESET; break;
     }
 
@@ -124,17 +121,31 @@ void Server::start()
                     handleClient(pollFds_[i].fd);
             }
         }
+        sendPingToClients();
     }
     printInfo(INFO, "Server shutting down...");
 }
 
 void Server::acceptClient(std::vector<pollfd>& pollFds_) 
 {
-    int clientSocket = accept(serverSocket_, NULL, NULL);
+    sockaddr_in clientAddr = {};
+    socklen_t clientAddrLen = sizeof(clientAddr);
+
+    int clientSocket = accept(serverSocket_, (struct sockaddr*)&clientAddr, &clientAddrLen);
     if (clientSocket < 0)
     {
         printErrorExit("Accept failed!", false);
         return;
+    }
+
+    for (const auto& pollFd : pollFds_) // test this
+    {
+        if (pollFd.fd == clientSocket)
+        {
+            printInfo(WARNING, "Client already connected!", clientSocket);
+            close(clientSocket);
+            return;
+        }
     }
 
     fcntl(clientSocket, F_SETFL, O_NONBLOCK);
@@ -147,34 +158,31 @@ void Server::acceptClient(std::vector<pollfd>& pollFds_)
         return;
     }
 
-    pollfd clientPollFd = { clientSocket, POLLIN, 0 };
-    pollFds_.push_back(clientPollFd);
-    printInfo(CONNECTION, "New client connected.", clientSocket);
+    std::string clientIp = inet_ntoa(clientAddr.sin_addr);
+
+    pollFds_.push_back({ clientSocket, POLLIN, 0 });
+    // clients_.push_back(Client(clientIp, clientSocket)); Client class
+    printInfo(CONNECTION, "New client connected from IP: " + clientIp, clientSocket);
 }
 
 void Server::handleClient(int clientSocket) 
 {
-    char buffer[BUFF];
+    char buffer[MAX_CHARS];
     int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
     if (bytesRead <= 0)
     {
-        close(clientSocket);
-        printInfo(DISCONNECTION, "Client disconnected!", clientSocket);
-
-        for (size_t i = 0; i < pollFds_.size(); i++)
-        {
-            if (pollFds_[i].fd == clientSocket)
-            {
-                pollFds_.erase(pollFds_.begin() + i);
-                break;
-            }
-        }
+        removeClient(clientSocket); // 
         return;
     }
 
     buffer[bytesRead] = '\0';
     std::string message(buffer);
-    printInfo(CLIENT, std::string("Received: ") + message, clientSocket);
+    processMessage(clientSocket, message);
+}
+
+void Server::processMessage(int clientSocket, std::string const& message)
+{
+    printInfo(CLIENT, "Received: " + message, clientSocket);
 
     if (isCommand(message))
     {
@@ -191,6 +199,33 @@ void Server::handleClient(int clientSocket)
             it->second(clientSocket, params);
         else
             sendToClient(clientSocket, "Unknown command: " + command);
+    }
+    else if (message.find("/bot") == 0)
+    {
+        std::string response = "I'm a bot!";// to finish
+    }
+}
+
+void Server::sendPingToClients()
+{
+    for (const auto& pfd : pollFds_)
+    {
+        if (pfd.fd == serverSocket_)
+            sendToClient(pfd.fd, YELLOW "[PING]" RESET);
+    }
+}
+
+void Server::removeClient(int clientSocket)
+{
+    for (size_t i = 0; i < pollFds_.size(); i++)
+    {
+        if (pollFds_[i].fd == clientSocket)
+        {
+            close(clientSocket);
+            pollFds_.erase(pollFds_.begin() + i);
+            printInfo(DISCONNECTION, "Client disconnected!", clientSocket);
+            break;
+        }
     }
 }
 

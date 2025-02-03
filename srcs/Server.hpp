@@ -25,9 +25,10 @@
 #define BLUE "\033[34m"
 #define GRAY "\033[90m"
 
-#define BUFF 1024
+#define MAX_CHARS 1024
 #define MAX_CLIENTS 100
 #define PING_T 60
+#define MAX_Q_CLIENTS 5
 
 enum messageType
 {
@@ -76,6 +77,10 @@ class Server
         void        sendToClient(int clientSocket, std::string const& message);
         void        signalHandler(int signum); 
         void        setupSignalHandler();
+        void        processMessage(int clientSocket, std::string const& message);
+        void        removeClient(int clientSocket);
+        void        sendPingToClients();
+
         
         // Command methods
         bool        isCommand(std::string const& message);

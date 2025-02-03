@@ -8,6 +8,9 @@ void Server::setupCmds()
     commandMap_["PRIVMSG"] = std::bind(&Server::cmdPrivmsg, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["QUIT"] = std::bind(&Server::cmdQuit, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["PING"] = std::bind(&Server::cmdPing, this, std::placeholders::_1, std::placeholders::_2);
+    commandMap_["PONG"] = std::bind(&Server::cmdPing, this, std::placeholders::_1, std::placeholders::_2);
+    commandMap_["TOPIC"] = std::bind(&Server::cmdQuit, this, std::placeholders::_1, std::placeholders::_2);
+    commandMap_["KICK"] = std::bind(&Server::cmdQuit, this, std::placeholders::_1, std::placeholders::_2);
 }
 
 void Server::cmdNick(int clientSocket, std::string const& params)
