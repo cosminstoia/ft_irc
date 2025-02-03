@@ -37,6 +37,7 @@ int main(int ac, char *av[])
     std::string password;
     if (!checkArgs(ac, av, port, password))
         return 1;
+    std::cout << "Port: " << port << " Password: " << password << std::endl;
     try
     {
         Server server(port, password);
@@ -46,7 +47,6 @@ int main(int ac, char *av[])
     {
         std::cerr << "Server error: " << e.what() << std::endl;
     }
-    std::cout << "Port: " << port << " Password: " << password << std::endl;
 
     
     return 0;

@@ -15,7 +15,7 @@
 #include <map>
 #include <set>
 #include <unordered_map>
-
+#include <csignal>
 #include "Client.hpp"
 
 #define RESET "\033[0m"
@@ -26,9 +26,8 @@
 #define GRAY "\033[90m"
 
 #define BUFF 1024
-#define MAX_CLIENTS 10
-
-
+#define MAX_CLIENTS 100
+#define PING_T 60
 
 enum messageType
 {
@@ -52,27 +51,33 @@ class Server
 
         void       start();
         void       printErrorExit(std::string const& msg, bool exitP = false);
-        void       printInfo(messageType type, std::string const& msg);
+        void       printInfo(messageType type, std::string const& msg, int clientSocket = -1);
         void       acceptClient(std::vector<pollfd>& pollFds_);
         void       handleClient(int clientSocket);
+
+        static Server* instance; // static pointer to the server instance
+        static void sSignalHandler(int signum); // static warp for signal handler
 
     private:
         int         port_;                      // Port number to listen on
         std::string password_;                  // Password to connect to the server
-        int         serverSocket_;             // Server socket file descriptor
-        struct sockaddr_in serverAddr_;        // Server address
-        std::vector<int> clientSockets_;       // Client socket file descriptors
-        std::string serverIp_;                 // Server IP address
+        int         serverSocket_;              // Server socket file descriptor
+        struct sockaddr_in serverAddr_;         // Server address
+        std::vector<int> clientSockets_;        // Client socket file descriptors
+        std::string serverIp_;                  // Server IP address
         std::vector<pollfd> pollFds_;           // Poll file descriptors
-        std::map<int, std::string> clients_; // map client sockets
+        std::map<int, std::string> clients_;    // map client sockets
+        bool        isRunning_;                 // Server running flag      
 
+        // Command storage
         std::unordered_map<std::string, std::function<void(int, std::string const&)>> commandMap_;
 
-        //methods
+        // Methods
         void        sendToClient(int clientSocket, std::string const& message);
-
-        // Commands + we use a unique prefix for each command 
-        // (not map because we need fast access and don't care about order)
+        void        signalHandler(int signum); 
+        void        setupSignalHandler();
+        
+        // Command methods
         bool        isCommand(std::string const& message);
         void        setupCmds();
         void        cmdNick(int clientSocket, std::string const& params);
