@@ -2,14 +2,13 @@
 #include "Client.hpp"
 #include <iostream>
 
-int main(int ac, char *av[])
+bool checkArgs(int ac, char*av[], int& port, std::string& pass)
 {
     if (ac != 3)
     {
         std::cerr << "Usage: ./ircserv <port> <password>\n";
-        return 1;
+        return false;
     }
-    int port = 0;
     try
     {
         port = std::stoi(av[1]);
@@ -21,19 +20,26 @@ int main(int ac, char *av[])
     catch(const std::exception& e)
     {
         std::cerr << e.what() << std::endl;
-        return 1;
+        return false;
     }
-
-    std::string password = av[2];
-    if (password.empty())
+    pass = av[2];
+    if (pass.empty())
     {
         std::cerr << "Password cannot be empty\n";
-        return 1;
+        return false;
     }
+    return true;
+}
+
+int main(int ac, char *av[])
+{
+    int port;
+    std::string password;
+    if (!checkArgs(ac, av, port, password))
+        return 1;
     try
     {
         Server server(port, password);
-        server.setup();
         server.start();
     }
     catch(const std::exception& e)

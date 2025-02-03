@@ -1,9 +1,39 @@
 #include "Server.hpp"
 
-Server::Server(int port, std::string password) : port_(port), password_(password)
+Server::Server(int port,std::string const& password)
 {
+    port_ = port;
+    password_ = password;
     serverSocket_ = -1; // init to -1 adn set up in setup()
     serverIp_ = "nop";
+    setupCmds();
+    
+    //setup server address
+    serverSocket_ = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket_ < 0)
+        printErrorExit("Socket creation failed!", true);
+
+    // non blocking mode
+    fcntl(serverSocket_, F_SETFL, O_NONBLOCK); // check adn close fd if
+    printInfo(INFO, "Socket server created.");
+
+    //coonfigure server address
+    serverAddr_.sin_family = AF_INET;
+    serverAddr_.sin_addr.s_addr = INADDR_ANY;
+    serverAddr_.sin_port = htons(port_);
+    
+    //bind the socket to the server address
+    if (bind(serverSocket_, (struct sockaddr *)&serverAddr_, sizeof(serverAddr_)) < 0)
+    {
+        close(serverSocket_),
+        printErrorExit("Bind failed!", true);
+    }
+
+    printInfo(INFO, "Socket binded to port " + std::to_string(port_));
+
+    //listen for connections
+    if (listen(serverSocket_, 5) < 0)
+        printErrorExit("Listen failed!", true);
 }
 
 Server::~Server()
@@ -19,7 +49,7 @@ void Server::printErrorExit(std::string const& msg, bool exitP)
         exit(1);
 }
 
-void Server::printInfo(messageType type, const std::string &msg)
+void Server::printInfo(messageType type, std::string const& msg)
 {
     // Get current time
     std::time_t now = std::time(nullptr);
@@ -80,30 +110,6 @@ void Server::printInfo(messageType type, const std::string &msg)
     std::cout << color << "[" << typeStr << "]"  << GRAY << " [" << oss.str()<< "] "
         << RESET << msg << std::endl;
 }
-
-void Server::setup()
-{
-    serverSocket_ = socket(AF_INET, SOCK_STREAM, 0);
-    if (serverSocket_ < 0)
-        printErrorExit("Establishing socket...", true);
-    
-    fcntl(serverSocket_, F_SETFL, O_NONBLOCK); //allow formula
-
-    printInfo(INFO, "Socket server has been created.");
-
-    serverAddr_.sin_family = AF_INET;
-    serverAddr_.sin_addr.s_addr = INADDR_ANY;
-    serverAddr_.sin_port = htons(port_);
-
-    if (bind(serverSocket_, (struct sockaddr *)&serverAddr_, sizeof(serverAddr_)) < 0)
-        printErrorExit("Error binding socket.", true);
-    
-    printInfo(INFO, "Binding success...");
-
-    if (listen(serverSocket_, 5) < 0)
-        printErrorExit("Error listening...", true);
-}
-
 
 void Server::start() 
 {
@@ -181,35 +187,53 @@ void Server::handleClient(int clientSocket)
         return;
     }
 
-    // Basic message handling
-
     buffer[bytesRead] = '\0';
     std::string message(buffer);
     printInfo(CLIENT, std::string("Received: ") + message);
 
-    // Parse message and if cmd execute it
-    // so we need to check the msg and if comdn to execut it
-    // i am thinkg if the comnd shave a prefix like / or ! or something 
-    // then is easy, we pass the word to a function that will execute the command
+    if (isCommand(message))
+    {
+        std::istringstream iss(message);
+        std::string command, params;
+
+        iss >> command;
+
+        if (!command.empty() && command[0] == '/')
+            command = command.erase(0, 1);
+
+        std::getline(iss, params);
+
+        auto it = commandMap_.find(command);
+
+        if (it != commandMap_.end())
+        {
+            it->second(clientSocket, params);
+        }
+        else
+        {
+            sendToClient(clientSocket, "Unknown command: " + command);
+        }
+    }
 }
 
 
-void Server::sendToClient(int clientSocket, const std::string &message)
+void Server::sendToClient(int clientSocket, std::string const& message)
 {
     std::string fullMessage = message + "\r\n";
     send(clientSocket, fullMessage.c_str(), fullMessage.length(), 0);
 }
 
-bool Server::isCommand(const std::string &input)
+bool Server::isCommand(std::string const& input)
 {
+    if (input.empty())
+        return false;
+
     std::istringstream iss(input);
     std::string command;
     iss >> command;
 
-    const std::set<std::string> validCommands =
-    {
-        "NICK", "USER", "JOIN", "PRIVMSG", "QUIT", "PING"
-    };
+    if (!command.empty() && command[0] == '/') // 
+        command = command.erase(0, 1);
 
-    return validCommands.find(command) != validCommands.end();
+    return commandMap_.find(command) != commandMap_.end();
 }
