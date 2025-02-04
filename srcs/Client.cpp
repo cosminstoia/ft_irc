@@ -1,25 +1,23 @@
 #include "Client.hpp"
-#include <cstring> // For memset
 
-using namespace std;
+Client::Client(const std::string& IpAddress, int socketDescriptor)
+    : IpAddress_(IpAddress),
+    socketDescriptor_(socketDescriptor)
+    //loggedIn_(false)
+{}
 
-Client::Client(string ip, int clientSocket) : ip(ip), portNum(123), isExit(false), buffSize(1024) 
+bool Client::operator==(const Client& other) const 
 {
-    buffer = new char[buffSize];
-    clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (clientSocket < 0) 
-    {
-        cout << ">> Error establishing socket..." << endl;
-        exit(1);
-    }
-    cout << ">> Socket client has been created..." << endl;
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(portNum);
-    memset(&serverAddr.sin_addr, 0, sizeof(serverAddr.sin_addr)); // Initialize server address
+    return this->nickName_ == other.nickName_;
 }
 
-Client::~Client() 
+Client::~Client()
 {
-    //delete[] buffer;
-    close(clientSocket);
+}
+
+void Client::sendMessage(const std::string& message) const 
+{
+    std::ostringstream infoStream;
+    infoStream << "Socket ID: " << socketDescriptor_ << " Username: " << nickName_;
+    send(socketDescriptor_, message.c_str(), message.size(), 0);
 }

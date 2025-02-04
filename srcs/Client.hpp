@@ -1,22 +1,23 @@
 #pragma once
 
+#include <ctime>
 #include <iostream>
-#include <netinet/in.h>
-#include <unistd.h>
+#include <sstream>
+#include <string>
+#include <sys/socket.h>
 
-class Client
+class Client 
 {
     private:
-        std::string ip; // ip address of the server
-        int clientSocket; // file descriptor to store the values returned by the socket system call and the accept system call.
-        int portNum; // storing port number on which the accepts connections (the port must be the same for client and server)
-        bool isExit; // bool variable which will be used to end the loop
-        int buffSize; // The client reads characters from the socket connection into a dynamic variable (buffer)
-        char *buffer;
-        struct sockaddr_in serverAddr; // structure containing an internet address. This structure is already defined in netinet/in.h , serverAddr will contain the address of the server
+        std::string receiveBuffer_;
+        std::string IpAddress_;
+        int         socketDescriptor_;
+        std::string userName_;
+        std::string nickName_;
+        //bool        loggedIn_;
     public:
-        Client(std::string ip, int clientSocket);
+        Client(const std::string& address, int socketDescriptor);
+        bool operator==(const Client& other) const;
+        void sendMessage(const std::string& message) const;
         ~Client();
-        bool connectToServer();
-        void communicate();
 };
