@@ -3,7 +3,7 @@
 
 using namespace std;
 
-Client::Client(int port) : portNum(port), isExit(false), buffSize(1024) 
+Client::Client(string ip, int clientSocket) : ip(ip), portNum(123), isExit(false), buffSize(1024) 
 {
     buffer = new char[buffSize];
     clientSocket = socket(AF_INET, SOCK_STREAM, 0);

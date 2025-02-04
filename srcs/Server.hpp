@@ -16,7 +16,7 @@
 #include <set>
 #include <unordered_map>
 #include <csignal>
-//#include "Client.hpp"
+#include "Client.hpp"
 
 #define RESET "\033[0m"
 #define RED "\033[31m"
@@ -67,7 +67,7 @@ class Server
         std::vector<int> clientSockets_;        // Client socket file descriptors
         std::string serverIp_;                  // Server IP address
         std::vector<pollfd> pollFds_;           // Poll file descriptors
-        std::map<int, std::string> clients_;    // map client sockets
+        std::vector<Client> clients_;    // map client sockets
         bool        isRunning_;                 // Server running flag      
 
         // Command storage

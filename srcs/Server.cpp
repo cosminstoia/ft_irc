@@ -1,5 +1,6 @@
 #include "Server.hpp"
 
+
 // static member initialization
 Server* Server::instance = nullptr;
 
@@ -64,6 +65,7 @@ void Server::printErrorExit(std::string const& msg, bool exitP)
 
 void Server::printInfo(messageType type, std::string const& msg, int clientSocket)
 {
+    (void)clientSocket;
     // Get current time
     std::time_t now = std::time(nullptr);
     std::tm *tm_now = std::localtime(&now);
@@ -81,14 +83,29 @@ void Server::printInfo(messageType type, std::string const& msg, int clientSocke
         default:        typeStr = "UNKNOWN";    color = RESET; break;
     }
 
-    std::string clientInfo = "";
-    if (clientSocket != -1 && clients_.find(clientSocket) != clients_.end())
-    {
-        clientInfo = "[" + clients_[clientSocket] + ":" + std::to_string(clientSocket) + "] ";
-    }
+    // std::string clientInfo = "";
+    // // if (clientSocket != -1 && clients_.find(clientSocket) != clients_.end())
+    // // {
+    // //     clientInfo = "[" + clients_[clientSocket] + ":" + std::to_string(clientSocket) + "] ";
+    // // }
 
+    
+
+    // std::cout << color << "[" << typeStr << "]"  << GRAY << " [" << oss.str() << "] "
+    //     << RESET << msg << std::endl;
+
+        std::string clientInfo = "";
+
+    // Hardcoded socket and port
+    int hardcodedSocket = 123; // Replace with your actual socket
+    std::string hardcodedMessage = msg; // The message you want to send
+
+    // Print to server console
     std::cout << color << "[" << typeStr << "]"  << GRAY << " [" << oss.str() << "] "
-        << RESET << msg << std::endl;
+              << RESET << clientInfo << msg << std::endl;
+
+    // Send message to the hardcoded socket
+    sendToClient(hardcodedSocket, hardcodedMessage);
 }
 
 void Server::start() 
@@ -161,7 +178,7 @@ void Server::acceptClient(std::vector<pollfd>& pollFds_)
     std::string clientIp = inet_ntoa(clientAddr.sin_addr);
 
     pollFds_.push_back({ clientSocket, POLLIN, 0 });
-    // clients_.push_back(Client(clientIp, clientSocket)); Client class
+    clients_.push_back(Client(clientIp, clientSocket));
     printInfo(CONNECTION, "New client connected from IP: " + clientIp, clientSocket);
 }
 

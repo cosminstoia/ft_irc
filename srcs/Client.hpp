@@ -7,6 +7,7 @@
 class Client
 {
     private:
+        std::string ip; // ip address of the server
         int clientSocket; // file descriptor to store the values returned by the socket system call and the accept system call.
         int portNum; // storing port number on which the accepts connections (the port must be the same for client and server)
         bool isExit; // bool variable which will be used to end the loop
@@ -14,7 +15,7 @@ class Client
         char *buffer;
         struct sockaddr_in serverAddr; // structure containing an internet address. This structure is already defined in netinet/in.h , serverAddr will contain the address of the server
     public:
-        Client(int port);
+        Client(std::string ip, int clientSocket);
         ~Client();
         bool connectToServer();
         void communicate();
