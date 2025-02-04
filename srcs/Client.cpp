@@ -2,8 +2,8 @@
 
 Client::Client(const std::string& IpAddress, int socketDescriptor)
     : IpAddress_(IpAddress),
-    socketDescriptor_(socketDescriptor)
-    //loggedIn_(false)
+    socketDescriptor_(socketDescriptor),
+    loggedIn_(false)
 {}
 
 bool Client::operator==(const Client& other) const 

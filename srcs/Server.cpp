@@ -4,7 +4,7 @@
 // static member initialization
 Server* Server::instance = nullptr;
 
-Server::Server(int port,std::string const& password)
+Server::Server(int port, std::string const& password)
 {
     port_ = port;
     password_ = password;
@@ -145,9 +145,39 @@ void Server::acceptClient(std::vector<pollfd>& pollFds_)
     std::string clientIp = inet_ntoa(clientAddr.sin_addr);
 
     pollFds_.push_back({ clientSocket, POLLIN, 0 });
-    clients_.push_back(Client(clientIp, clientSocket));
-    printInfo(CONNECTION, "New client connected from IP: " + clientIp, clientSocket);
-    sendToClient(clientSocket, "Authenticated using password: " + password_);
+    clients_.emplace(clientSocket, Client(clientIp, clientSocket));
+
+    sendToClient(clientSocket, "Please enter password:");
+    std::cout << "1111" << std::endl;
+}
+
+bool Server::checkAuthentification(int clientSocket, std::string const& msg)
+{
+    std::istringstream iss(msg);
+    std::string cmd, pass;
+    iss >> cmd >> pass;
+    std::cout << "2222222" << std::endl;
+
+    if (cmd == "PASS")
+    {
+        if (pass == password_)
+        {
+            clients_[clientSocket].setLoggedIn(true);
+            sendToClient(clientSocket, "Authentication successful!");
+            return true;
+        }
+        else
+        {
+            sendToClient(clientSocket, "Incorrect password! Disconnecting!");
+            close(clientSocket);
+            clients_.erase(clientSocket);
+            std::cout << "3333333" << std::endl;
+            return false;
+        }
+    }
+
+    sendToClient(clientSocket, "Unknown command! Enter PASS first!");
+    return false;
 }
 
 void Server::handleClient(int clientSocket) 
@@ -156,39 +186,64 @@ void Server::handleClient(int clientSocket)
     int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
     if (bytesRead <= 0)
     {
-        removeClient(clientSocket); // 
+        removeClient(clientSocket); 
         return;
     }
 
-    buffer[bytesRead] = '\0';
-    std::string message(buffer);
-    processMessage(clientSocket, message);
+    std::string message(buffer, bytesRead);
+    printInfo(CLIENT, "Received: " + message);
+
+
+    if (!clients_.count(clientSocket))
+    {
+        printInfo(WARNING, "Client not found. Disconnecting!", clientSocket);
+        removeClient(clientSocket);
+        return;
+    }
+
+    if (!clients_[clientSocket].isLoggedIn())
+    {
+        if (!checkAuthentification(clientSocket, message))
+            return;
+    }
+    else
+        processMessage(clientSocket, message);
 }
 
 void Server::processMessage(int clientSocket, std::string const& message)
 {
-    printInfo(CLIENT, "Received: " + message, clientSocket);
+    printInfo(CLIENT, "Received: " + message);
 
-    if (isCommand(message))
+    auto it = clients_.find(clientSocket);
+    if (it == clients_.end())
     {
-        std::istringstream iss(message);
-        std::string command, params;
-        iss >> command;
-        if (!command.empty() && command[0] == '/')
-            command = command.erase(0, 1);
-
-        std::getline(iss, params);
-
-        auto it = commandMap_.find(command);
-        if (it != commandMap_.end())
-            it->second(clientSocket, params);
-        else
-            sendToClient(clientSocket, "Unknown command: " + command);
+        printInfo(WARNING, "Client not found. Disconnecting!", clientSocket);
+        removeClient(clientSocket);
+        return;
     }
-    else if (message.find("/bot") == 0)
-    {
-        std::string response = "I'm a bot!";// to finish
+    Client& client = it->second;
+
+     // If not logged in, force authentication
+    if (!client.isLoggedIn()) {
+        if (!checkAuthentification(clientSocket, message)) {
+            return;  // If authentication fails, stop processing
+        }
     }
+    
+    // Process commands only after authentication
+    std::istringstream iss(message);
+    std::string command, params;
+    iss >> command;
+    std::getline(iss, params);
+
+    if (!command.empty() && command[0] == '/')
+        command = command.erase(0, 1);
+
+    auto itCmd = commandMap_.find(command);
+    if (itCmd != commandMap_.end())
+        itCmd->second(clientSocket, params);
+    else
+        sendToClient(clientSocket, "Unknown command: " + command);
 }
 
 void Server::removeClient(int clientSocket)

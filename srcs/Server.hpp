@@ -64,7 +64,7 @@ class Server
         struct sockaddr_in serverAddr_;         // Server address
         std::string serverIp_;                  // Server IP address
         std::vector<pollfd> pollFds_;           // Poll file descriptors
-        std::vector<Client> clients_;    // map client sockets
+        std::map<int,Client> clients_;          // socket as key, Client as value
         bool        isRunning_;                 // Server running flag      
 
         // Command storage
@@ -85,4 +85,5 @@ class Server
         void        cmdUser(int clientSocket, std::string const& params);
         void        cmdPrivmsg(int clientSocket, std::string const& params);
         void        cmdQuit(int clientSocket, std::string const& params);
+        bool        checkAuthentification(int clientSocket, std::string const& msg);
 };

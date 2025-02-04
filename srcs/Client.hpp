@@ -5,7 +5,6 @@
 #include <sstream>
 #include <string>
 #include <sys/socket.h>
-
 class Client 
 {
     private:
@@ -14,10 +13,14 @@ class Client
         int         socketDescriptor_;
         std::string userName_;
         std::string nickName_;
-        //bool        loggedIn_;
+        bool        loggedIn_;
     public:
-        Client(const std::string& address, int socketDescriptor);
+        Client() : socketDescriptor_(-1), loggedIn_(false) {}
+        Client(const std::string& IpAddress, int socketDescriptor);
         bool operator==(const Client& other) const;
         void sendMessage(const std::string& message) const;
         ~Client();
+
+        void setLoggedIn(bool loggedIn) { loggedIn_ = loggedIn; }
+        bool isLoggedIn() const { return loggedIn_; };
 };
