@@ -39,6 +39,7 @@ Server::Server(int port,std::string const& password)
         printErrorExit("Listen failed!", true);
     
     printInfo(INFO, "Server listening on ip:port " + std::to_string(port_));
+    pollFds_.push_back((struct pollfd){serverSocket_, POLLIN, 0});
     setupCmds();
     setupSignalHandler();
 }
@@ -130,10 +131,11 @@ void Server::start()
         }
         for (size_t i = 0; i < pollFds_.size(); i++)
         {
+           // std::cout << "-----------------------------";
             if (pollFds_[i].revents & POLLIN)
             {
-                if (pollFds_[i].fd == serverSocket_)
-                    acceptClient(pollFds_);
+                if (pollFds_[i].fd == serverSocket_){
+                    acceptClient(pollFds_);}
                 else
                     handleClient(pollFds_[i].fd);
             }

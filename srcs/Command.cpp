@@ -20,7 +20,7 @@ void Server::cmdNick(int clientSocket, std::string const& params)
         sendToClient(clientSocket, "No nickname provided!");
         return;
     }
-    clients_[clientSocket] = params;
+    //clients_[clientSocket] = params;
     sendToClient(clientSocket, "NICKNAME_SET: " + params);
     printInfo(CLIENT, "Nickname set to: " + params, clientSocket);
 }
