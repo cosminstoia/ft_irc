@@ -1,4 +1,4 @@
-#include "client.hpp"
+#include "Client.hpp"
 #include <cstring> // For memset
 
 using namespace std;
