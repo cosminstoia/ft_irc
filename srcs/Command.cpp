@@ -7,8 +7,6 @@ void Server::setupCmds()
     commandMap_["JOIN"] = std::bind(&Server::cmdJoin, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["PRIVMSG"] = std::bind(&Server::cmdPrivmsg, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["QUIT"] = std::bind(&Server::cmdQuit, this, std::placeholders::_1, std::placeholders::_2);
-    commandMap_["PING"] = std::bind(&Server::cmdPing, this, std::placeholders::_1, std::placeholders::_2);
-    commandMap_["PONG"] = std::bind(&Server::cmdPing, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["TOPIC"] = std::bind(&Server::cmdQuit, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["KICK"] = std::bind(&Server::cmdQuit, this, std::placeholders::_1, std::placeholders::_2);
 }
@@ -78,11 +76,5 @@ void Server::cmdQuit(int clientSocket, std::string const& params)
         }
     }
     printInfo(DISCONNECTION, "Client disconnected!", clientSocket);
-}
-
-void Server::cmdPing(int clientSocket, std::string const& params)
-{
-    sendToClient(clientSocket, "PONG " + params);
-    printInfo(PING, "Received PING from client", clientSocket);
 }
 

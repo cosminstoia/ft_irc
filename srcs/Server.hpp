@@ -27,7 +27,6 @@
 
 #define MAX_CHARS 1024
 #define MAX_CLIENTS 100
-#define PING_T 60
 #define MAX_Q_CLIENTS 5
 
 enum messageType
@@ -36,12 +35,11 @@ enum messageType
     WARNING,
     CONNECTION,
     DISCONNECTION,
-    PING,
-    PONG,
     CLIENT,
     SERVER,
     TIMEOUT,
     SUCCESS,
+    BOT,
 };
 
 class Server
@@ -64,7 +62,6 @@ class Server
         std::string password_;                  // Password to connect to the server
         int         serverSocket_;              // Server socket file descriptor
         struct sockaddr_in serverAddr_;         // Server address
-        std::vector<int> clientSockets_;        // Client socket file descriptors
         std::string serverIp_;                  // Server IP address
         std::vector<pollfd> pollFds_;           // Poll file descriptors
         std::vector<Client> clients_;    // map client sockets
@@ -79,8 +76,6 @@ class Server
         void        setupSignalHandler();
         void        processMessage(int clientSocket, std::string const& message);
         void        removeClient(int clientSocket);
-        void        sendPingToClients();
-
         
         // Command methods
         bool        isCommand(std::string const& message);
@@ -90,5 +85,4 @@ class Server
         void        cmdUser(int clientSocket, std::string const& params);
         void        cmdPrivmsg(int clientSocket, std::string const& params);
         void        cmdQuit(int clientSocket, std::string const& params);
-        void        cmdPing(int clientSocket, std::string const& params);
 };

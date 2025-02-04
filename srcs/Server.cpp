@@ -81,32 +81,12 @@ void Server::printInfo(messageType type, std::string const& msg, int clientSocke
         case WARNING:   typeStr = "WARNING";    color = YELLOW; break;
         case CONNECTION:typeStr = "CONNECTION"; color = GREEN;  break;
         case DISCONNECTION: typeStr = "DISCONNECTION"; color = RED; break;
+        case BOT:  typeStr = "BOT";   color = GRAY;   break;
         default:        typeStr = "UNKNOWN";    color = RESET; break;
     }
 
-    // std::string clientInfo = "";
-    // // if (clientSocket != -1 && clients_.find(clientSocket) != clients_.end())
-    // // {
-    // //     clientInfo = "[" + clients_[clientSocket] + ":" + std::to_string(clientSocket) + "] ";
-    // // }
-
-    
-
-    // std::cout << color << "[" << typeStr << "]"  << GRAY << " [" << oss.str() << "] "
-    //     << RESET << msg << std::endl;
-
-        std::string clientInfo = "";
-
-    // Hardcoded socket and port
-    int hardcodedSocket = 123; // Replace with your actual socket
-    std::string hardcodedMessage = msg; // The message you want to send
-
-    // Print to server console
-    std::cout << color << "[" << typeStr << "]"  << GRAY << " [" << oss.str() << "] "
-              << RESET << clientInfo << msg << std::endl;
-
-    // Send message to the hardcoded socket
-    sendToClient(hardcodedSocket, hardcodedMessage);
+    std::cout << color << "[" << typeStr << "]" << GRAY " [" << oss.str() << "] "
+                << RESET << msg << std::endl;
 }
 
 void Server::start() 
@@ -131,7 +111,6 @@ void Server::start()
         }
         for (size_t i = 0; i < pollFds_.size(); i++)
         {
-           // std::cout << "-----------------------------";
             if (pollFds_[i].revents & POLLIN)
             {
                 if (pollFds_[i].fd == serverSocket_){
@@ -140,7 +119,6 @@ void Server::start()
                     handleClient(pollFds_[i].fd);
             }
         }
-        sendPingToClients();
     }
     printInfo(INFO, "Server shutting down...");
 }
@@ -157,31 +135,19 @@ void Server::acceptClient(std::vector<pollfd>& pollFds_)
         return;
     }
 
-    for (const auto& pollFd : pollFds_) // test this
+    if (pollFds_.size() >= MAX_CLIENTS)
     {
-        if (pollFd.fd == clientSocket)
-        {
-            printInfo(WARNING, "Client already connected!", clientSocket);
-            close(clientSocket);
-            return;
-        }
+        close(clientSocket);
+        return printInfo(WARNING, "Max clients reached, closing connection.");
     }
 
     fcntl(clientSocket, F_SETFL, O_NONBLOCK);
-
-    if (pollFds_.size() >= MAX_CLIENTS) //test this
-    {
-        sendToClient(clientSocket, "Max clients reached, closing connection.");
-        printInfo(WARNING, "Max clients reached, closing connection.", clientSocket);
-        close(clientSocket);
-        return;
-    }
-
     std::string clientIp = inet_ntoa(clientAddr.sin_addr);
 
     pollFds_.push_back({ clientSocket, POLLIN, 0 });
     clients_.push_back(Client(clientIp, clientSocket));
     printInfo(CONNECTION, "New client connected from IP: " + clientIp, clientSocket);
+    sendToClient(clientSocket, "Authenticated using password: " + password_);
 }
 
 void Server::handleClient(int clientSocket) 
@@ -222,15 +188,6 @@ void Server::processMessage(int clientSocket, std::string const& message)
     else if (message.find("/bot") == 0)
     {
         std::string response = "I'm a bot!";// to finish
-    }
-}
-
-void Server::sendPingToClients()
-{
-    for (const auto& pfd : pollFds_)
-    {
-        if (pfd.fd == serverSocket_)
-            sendToClient(pfd.fd, YELLOW "[PING]" RESET);
     }
 }
 

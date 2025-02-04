@@ -11,6 +11,7 @@ Bot::~Bot() {}
 
 void Bot::helpCommand(Server& server, const std::string& recipient) 
 {
+    (void)recipient;
     std::string helpMessage =
         "---------HELP----------\n"
         "HELP - Lists all commands\n"
@@ -28,6 +29,7 @@ void Bot::helpCommand(Server& server, const std::string& recipient)
 
 void Bot::motivationCommand(Server& server, const std::string& recipient) 
 {
+    (void)recipient;
     std::vector<std::string> quotes = {
         "Believe you can and you're halfway there.",
         "The only way to do great work is to love what you do.",
