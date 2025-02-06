@@ -1,9 +1,21 @@
 #include "Client.hpp"
 
-Client::Client(const std::string& IpAddress, int socketDescriptor)
-    : IpAddress_(IpAddress),
-    socketDescriptor_(socketDescriptor),
-    loggedIn_(false)
+Client::Client()
+    : ipAddress_(""),
+      socket_(-1),
+      userName_(""),
+      nickName_(""),
+      loggedIn_(false),
+      receiveBuffer_("")
+{}
+Client::Client(const std::string& ipAddress, int socket)
+    : ipAddress_(ipAddress),
+      socket_(socket),
+      userName_(""),
+      nickName_(""),
+      loggedIn_(false),
+      receiveBuffer_(""),
+      clientPassword_("")
 {}
 
 bool Client::operator==(const Client& other) const 
@@ -12,12 +24,12 @@ bool Client::operator==(const Client& other) const
 }
 
 Client::~Client()
-{
-}
+{}
 
-void Client::sendMessage(const std::string& message) const 
+void Client::sendMessage(const std::string& message) 
 {
     std::ostringstream infoStream;
-    infoStream << "Socket ID: " << socketDescriptor_ << " Username: " << nickName_;
-    send(socketDescriptor_, message.c_str(), message.size(), 0);
+    infoStream << "Socket ID: " << socket_ << " Username: " << nickName_;
+    send(socket_, message.c_str(), message.size(), 0);
 }
+

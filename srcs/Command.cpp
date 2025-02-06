@@ -20,7 +20,7 @@ void Server::cmdNick(int clientSocket, std::string const& params)
     }
     //clients_[clientSocket] = params;
     sendToClient(clientSocket, "NICKNAME_SET: " + params);
-    printInfo(CLIENT, "Nickname set to: " + params, clientSocket);
+    printInfo(CLIENT, "Nickname set to: " + params);
 }
 
 void Server::cmdUser(int clientSocket, std::string const& params)
@@ -31,7 +31,7 @@ void Server::cmdUser(int clientSocket, std::string const& params)
         return;
     }
     sendToClient(clientSocket, "USERNAME_SET: " + params);
-    printInfo(INFO, "Username set to: " + params, clientSocket);
+    printInfo(INFO, "Username set to: " + params);
 }
 
 void Server::cmdJoin(int clientSocket, std::string const& params)
@@ -42,7 +42,7 @@ void Server::cmdJoin(int clientSocket, std::string const& params)
         return;
     }
     sendToClient(clientSocket, "JOINED: " + params);
-    printInfo(INFO, "Client joined channel " + params, clientSocket);
+    printInfo(INFO, "Client joined channel " + params);
 }
 void Server::cmdPrivmsg(int clientSocket, std::string const& params)
 {
@@ -60,7 +60,7 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
     std::string recipient = params.substr(0, sp);
     std::string message = params.substr(sp + 1);
     sendToClient(clientSocket, "PRIVMSG sent to " + recipient + ": " + message);
-    printInfo(CLIENT, "PRIVMSG sent to " + recipient + ": " + message, clientSocket);
+    printInfo(CLIENT, "PRIVMSG sent to " + recipient + ": " + message);
 }
 
 void Server::cmdQuit(int clientSocket, std::string const& params)
@@ -75,6 +75,6 @@ void Server::cmdQuit(int clientSocket, std::string const& params)
             break;
         }
     }
-    printInfo(DISCONNECTION, "Client disconnected!", clientSocket);
+    printInfo(DISCONNECTION, "Client disconnected!");
 }
 

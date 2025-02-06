@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <csignal>
 #include "Client.hpp"
+#include "Channel.hpp"
 
 #define RESET "\033[0m"
 #define RED "\033[31m"
@@ -44,19 +45,6 @@ enum messageType
 
 class Server
 {
-    public:
-        Server(int port, std::string const& password);
-        ~Server();
-
-        void       start();
-        void       printErrorExit(std::string const& msg, bool exitP = false);
-        void       printInfo(messageType type, std::string const& msg, int clientSocket = -1);
-        void       acceptClient(std::vector<pollfd>& pollFds_);
-        void       handleClient(int clientSocket);
-
-        static Server* instance; // static pointer to the server instance
-        static void sSignalHandler(int signum); // static warp for signal handler
-
     private:
         int         port_;                      // Port number to listen on
         std::string password_;                  // Password to connect to the server
@@ -64,26 +52,46 @@ class Server
         struct sockaddr_in serverAddr_;         // Server address
         std::string serverIp_;                  // Server IP address
         std::vector<pollfd> pollFds_;           // Poll file descriptors
+        std::map<std::string, Channel> channels_;
         std::map<int,Client> clients_;          // socket as key, Client as value
         bool        isRunning_;                 // Server running flag      
 
         // Command storage
         std::unordered_map<std::string, std::function<void(int, std::string const&)>> commandMap_;
 
-        // Methods
-        void        sendToClient(int clientSocket, std::string const& message);
+        // Signal methods
         void        signalHandler(int signum); 
         void        setupSignalHandler();
-        void        processMessage(int clientSocket, std::string const& message);
-        void        removeClient(int clientSocket);
         
         // Command methods
-        bool        isCommand(std::string const& message);
         void        setupCmds();
         void        cmdNick(int clientSocket, std::string const& params);
         void        cmdJoin(int clientSocket, std::string const& params);
         void        cmdUser(int clientSocket, std::string const& params);
         void        cmdPrivmsg(int clientSocket, std::string const& params);
         void        cmdQuit(int clientSocket, std::string const& params);
+
+        // Utils commands
+        void        connectClient(int clientSocket);
+        void        handleConnection(Client& client, const std::string& message);
+        void        removeClient(int clientSocket);
+        void        sendToClient(int clientSocket, std::string const& message);
         bool        checkAuthentification(int clientSocket, std::string const& msg);
+
+        // Pars Input
+        void       parseInput(Client& client, std::string const& message);
+    public:
+        Server(int port, std::string const& password);
+        ~Server();
+
+        void       start();
+        void       acceptClient(std::vector<pollfd>& pollFds_);
+        void       handleClient(int clientSocket);
+
+        static Server* instance; // static pointer to the server instance
+        static void sSignalHandler(int signum); // static warp for signal handler
 };
+
+// Extra Functions
+void       printInfo(messageType type, std::string const& msg);
+void       printErrorExit(std::string const& msg, bool exitP = false);
