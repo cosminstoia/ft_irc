@@ -6,7 +6,10 @@ Client::Client()
       userName_(""),
       nickName_(""),
       loggedIn_(false),
-      receiveBuffer_("")
+      receiveBuffer_(""),
+      bytes_(0),
+      lastActivity_(time(0)),
+      lastPingtime_(time(0))
 {}
 Client::Client(const std::string& ipAddress, int socket)
     : ipAddress_(ipAddress),
@@ -15,7 +18,10 @@ Client::Client(const std::string& ipAddress, int socket)
       nickName_(""),
       loggedIn_(false),
       receiveBuffer_(""),
-      clientPassword_("")
+      clientPassword_(""),
+      bytes_(0),
+      lastActivity_(time(0)),
+      lastPingtime_(time(0))
 {}
 
 bool Client::operator==(const Client& other) const 
@@ -25,11 +31,3 @@ bool Client::operator==(const Client& other) const
 
 Client::~Client()
 {}
-
-void Client::sendMessage(const std::string& message) 
-{
-    std::ostringstream infoStream;
-    infoStream << "Socket ID: " << socket_ << " Username: " << nickName_;
-    send(socket_, message.c_str(), message.size(), 0);
-}
-

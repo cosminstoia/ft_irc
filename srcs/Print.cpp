@@ -18,6 +18,8 @@ void printInfoToServer(messageType type, std::string const& msg)
         case DISCONNECTION: typeStr = "DISCONNECTION"; color = RED; break;
         case BOT:  typeStr = "BOT";   color = GRAY;   break;
         case ERROR:  typeStr = "ERROR";   color = RED;   break;
+        case PING: typeStr = "PING";  color = CYAN;   break;
+        case PONG: typeStr = "PONG";  color = CYAN;   break;
         default:        typeStr = "UNKNOWN";    color = RESET; break;
     }
 

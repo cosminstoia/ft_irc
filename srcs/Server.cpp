@@ -23,6 +23,7 @@ Server::Server(int port, std::string const& password)
         printErrorExit("Failed to set socket to non-blocking mode!", true);
 
     //configure server address
+    //we use ipv4; for ipv6, we would use AF_INET6
     serverAddr_.sin_family = AF_INET;
     serverAddr_.sin_addr.s_addr = INADDR_ANY;
     serverAddr_.sin_port = htons(port_);
@@ -55,6 +56,7 @@ Server::~Server()
 
 void Server::start() 
 {
+    // asciiArt();
     printInfoToServer(INFO, "Waiting for conections...");
     while (isRunning_)
     {
@@ -73,6 +75,7 @@ void Server::start()
                     handleClient(pollFds_[i].fd);
             }
         }
+        checkTimeouts();
     }
     printInfoToServer(INFO, "Server shutting down...");
 }
@@ -99,6 +102,7 @@ void Server::acceptClient(std::vector<pollfd>& pollFds_)
     clients_.emplace(clientSocket, Client(clientIp, clientSocket));
 }
 
+// i need to add here the chekc for ping pong
 void Server::handleClient(int clientSocket) 
 {
     auto it = clients_.find(clientSocket);
@@ -117,6 +121,23 @@ void Server::handleClient(int clientSocket)
         }
         buffer[bytesRead] = '\0';
         client.appendToReceiveBuffer(buffer, bytesRead);
-        connectClient(clientSocket);        
+        connectClient(clientSocket);
+    }
+}
+
+void Server::checkTimeouts() 
+{
+    time_t currentTime = time(nullptr);
+    for (auto it = clients_.begin(); it != clients_.end();)
+    {
+        Client& client = it->second;
+        if (currentTime - client.lastActivity_ > TIMEOUT)
+        {
+            //remove print it disconnected all the time
+            removeClient(client.getSocket());
+            it = clients_.erase(it);
+        }
+        else
+            it++;
     }
 }

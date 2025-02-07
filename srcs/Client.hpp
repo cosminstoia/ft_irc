@@ -5,6 +5,7 @@
 #include <sstream> 
 #include <iostream>
 #include <set>
+#include <time.h>
 
 class Client
 {
@@ -23,7 +24,6 @@ class Client
         Client();
         Client(const std::string& ipAddress, int socket);
         bool operator==(const Client& other) const;
-        void sendMessage(const std::string& message);
         ~Client();
 
         void setLoggedIn(bool loggedIn) { loggedIn_ = loggedIn; }
@@ -45,4 +45,10 @@ class Client
         const int& getSocket() const { return socket_; }
         const int& getBytes() const { return bytes_; }
         void joinChannel(const std::string& channel) { joinedChannels_.insert(channel); }
+        
+        // ping pong mechanism
+        time_t lastActivity_;
+        time_t lastPingtime_;
+        void updateActivity() { lastActivity_ = time(nullptr); }
+        void updatePingtime() { lastPingtime_ = time(nullptr); }
 };

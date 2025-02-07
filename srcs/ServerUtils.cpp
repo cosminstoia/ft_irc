@@ -11,8 +11,17 @@ void Server::connectClient(int clientSocket)
         std::cout << "-----input------: " << message << std::endl;
 		if (message.substr(0, 6) == "CAP LS")
         {
-            client.sendMessage("CAP * LS :\r\n");
+            sendToClient(clientSocket, "CAP * LS :\r\n");
+            printInfoToServer(INFO, "Sent CAP LS to client");
             //return;
+        }
+        else if (message.substr(0, 4) == "PING")
+        {
+            printInfoToServer(PING, "Received PING from client");
+            sendToClient(clientSocket, "PONG " + message.substr(5));
+            printInfoToServer(PONG, "Sent PONG to client");
+            client.updateActivity();
+            // return;
         }
 		std::string buffer = client.getBuffer();
         buffer.erase(0, pos + 2);
@@ -39,6 +48,20 @@ void Server::removeClient(int clientSocket)
 void Server::sendToClient(int clientSocket, std::string const& message)
 {
     std::string fullMessage = message + "\r\n";
-    std::cout << fullMessage;
-    send(clientSocket, fullMessage.c_str(), fullMessage.length(), 0);
+    ssize_t bytesSend = send(clientSocket, fullMessage.c_str(), fullMessage.length(), 0);
+    if (bytesSend < 0)
+        printErrorExit("send failed!", false);
+}
+
+
+void Server::asciiArt()
+{
+    std::cout << GREEN R"(░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░█░█░█▀▀░█░░░█▀▀░█▀█░█▄█░█▀▀░░░░░░░░░░░░        
+░░░░░░░░░░░░░░░░░█▄█░█▀▀░█░░░█░░░█░█░█░█░█▀▀░░░░░░░░░░░░       
+░░░░░░░░░░░░░░░░░▀░▀░▀▀▀░▀▀▀░▀▀▀░▀▀▀░▀░▀░▀▀▀░░░░░░░░░░░░         
+░█▀▀░█▀▀░█▀▄░█░█░█▀▀░█▀▄░░░█▀▀░▀█▀░█▀█░█▀▄░▀█▀░█▀▀░█▀▄░░
+░▀▀█░█▀▀░█▀▄░▀▄▀░█▀▀░█▀▄░░░▀▀█░░█░░█▀█░█▀▄░░█░░█▀▀░█░█░░
+░▀▀▀░▀▀▀░▀░▀░░▀░░▀▀▀░▀░▀░░░▀▀▀░░▀░░▀░▀░▀░▀░░▀░░▀▀▀░▀▀░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░)" << std::endl;
 }

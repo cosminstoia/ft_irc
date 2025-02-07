@@ -18,17 +18,7 @@
 #include <csignal>
 #include "Client.hpp"
 #include "Channel.hpp"
-
-#define RESET "\033[0m"
-#define RED "\033[31m"
-#define GREEN "\033[32m"
-#define YELLOW "\033[33m"
-#define BLUE "\033[34m"
-#define GRAY "\033[90m"
-
-#define MAX_CHARS 1024
-#define MAX_CLIENTS 100
-#define MAX_Q_CLIENTS 5
+#include "Macros.hpp"
 
 enum messageType
 {
@@ -38,10 +28,11 @@ enum messageType
     DISCONNECTION,
     CLIENT,
     SERVER,
-    TIMEOUT,
     SUCCESS,
     BOT,
     ERROR,
+    PING,
+    PONG,
 };
 
 class Server
@@ -75,7 +66,6 @@ class Server
 
         // Utils commands
         void        connectClient(int clientSocket);
-        void        handleConnection(Client& client, const std::string& message);
         void        removeClient(int clientSocket);
         void        sendToClient(int clientSocket, std::string const& message);
         //bool        checkAuthentification(int clientSocket, std::string const& msg);
@@ -92,6 +82,12 @@ class Server
 
         static Server* instance; // static pointer to the server instance
         static void sSignalHandler(int signum); // static warp for signal handler
+
+        // ping pong mechanism
+        void       checkTimeouts();
+
+        //welcom ascii
+        void        asciiArt();
 };
 
 // Extra Functions
