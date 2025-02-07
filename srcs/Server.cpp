@@ -35,7 +35,7 @@ Server::Server(int port, std::string const& password)
     if (listen(serverSocket_, MAX_Q_CLIENTS) < 0)
         printErrorExit("Listen failed!", true);
     
-    printInfo(INFO, "Server listening on ip:port " + std::to_string(port_));
+    printInfoToServer(INFO, "Server listening on ip:port " + std::to_string(port_));
     pollFds_.push_back((struct pollfd){serverSocket_, POLLIN, 0});
     setupCmds();
     setupSignalHandler();
@@ -55,7 +55,7 @@ Server::~Server()
 
 void Server::start() 
 {
-    printInfo(INFO, "Waiting for conections...");
+    printInfoToServer(INFO, "Waiting for conections...");
     while (isRunning_)
     {
         if (poll(pollFds_.data(), pollFds_.size(), 0) == -1 && errno != EINTR)
@@ -74,7 +74,7 @@ void Server::start()
             }
         }
     }
-    printInfo(INFO, "Server shutting down...");
+    printInfoToServer(INFO, "Server shutting down...");
 }
 
 void Server::acceptClient(std::vector<pollfd>& pollFds_) 
@@ -91,7 +91,7 @@ void Server::acceptClient(std::vector<pollfd>& pollFds_)
     if (pollFds_.size() >= MAX_CLIENTS)
     {
         close(clientSocket);
-        return printInfo(WARNING, "Max clients reached, closing connection.");
+        return printInfoToServer(WARNING, "Max clients reached, closing connection.");
     }
     fcntl(clientSocket, F_SETFL, O_NONBLOCK);
     std::string clientIp = inet_ntoa(clientAddr.sin_addr);

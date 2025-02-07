@@ -41,6 +41,7 @@ enum messageType
     TIMEOUT,
     SUCCESS,
     BOT,
+    ERROR,
 };
 
 class Server
@@ -70,16 +71,17 @@ class Server
         void        cmdUser(int clientSocket, std::string const& params);
         void        cmdPrivmsg(int clientSocket, std::string const& params);
         void        cmdQuit(int clientSocket, std::string const& params);
+        bool        cmdPass(int clientSocket, std::string const& params);
 
         // Utils commands
         void        connectClient(int clientSocket);
         void        handleConnection(Client& client, const std::string& message);
         void        removeClient(int clientSocket);
         void        sendToClient(int clientSocket, std::string const& message);
-        bool        checkAuthentification(int clientSocket, std::string const& msg);
+        //bool        checkAuthentification(int clientSocket, std::string const& msg);
 
         // Pars Input
-        void       parseInput(Client& client, std::string const& message);
+        bool       parseInput(Client& client, std::string const& message);
     public:
         Server(int port, std::string const& password);
         ~Server();
@@ -93,5 +95,5 @@ class Server
 };
 
 // Extra Functions
-void       printInfo(messageType type, std::string const& msg);
+void       printInfoToServer(messageType type, std::string const& msg);
 void       printErrorExit(std::string const& msg, bool exitP = false);

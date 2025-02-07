@@ -1,6 +1,6 @@
 #include "Server.hpp"
 
-void printInfo(messageType type, std::string const& msg)
+void printInfoToServer(messageType type, std::string const& msg)
 {
     // Get current time
     std::time_t now = std::time(nullptr);
@@ -17,6 +17,7 @@ void printInfo(messageType type, std::string const& msg)
         case CONNECTION:typeStr = "CONNECTION"; color = GREEN;  break;
         case DISCONNECTION: typeStr = "DISCONNECTION"; color = RED; break;
         case BOT:  typeStr = "BOT";   color = GRAY;   break;
+        case ERROR:  typeStr = "ERROR";   color = RED;   break;
         default:        typeStr = "UNKNOWN";    color = RESET; break;
     }
 
