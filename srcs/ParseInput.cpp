@@ -47,11 +47,6 @@ bool Server::parseInput(Client& client, const std::string& message)
     {
         it->second(client.getSocket(), parameters);
         return true;
-    } 
-    else 
-    {
-        printInfoToServer(ERROR, "Unknown command!");
-        sendToClient(client.getSocket(), "Unknown command!");
-        return false;
     }
+    return false;
 }

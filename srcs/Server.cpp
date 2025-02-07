@@ -75,7 +75,6 @@ void Server::start()
                     handleClient(pollFds_[i].fd);
             }
         }
-        checkTimeouts();
     }
     printInfoToServer(INFO, "Server shutting down...");
 }
@@ -86,6 +85,7 @@ void Server::acceptClient(std::vector<pollfd>& pollFds_)
     socklen_t clientAddrLen = sizeof(clientAddr);
 
     int clientSocket = accept(serverSocket_, (struct sockaddr*)&clientAddr, &clientAddrLen);
+    sendPeriodicPings(clientSocket);
     if (clientSocket < 0)
     {
         printErrorExit("Accept failed!", false);
@@ -122,22 +122,5 @@ void Server::handleClient(int clientSocket)
         buffer[bytesRead] = '\0';
         client.appendToReceiveBuffer(buffer, bytesRead);
         connectClient(clientSocket);
-    }
-}
-
-void Server::checkTimeouts() 
-{
-    time_t currentTime = time(nullptr);
-    for (auto it = clients_.begin(); it != clients_.end();)
-    {
-        Client& client = it->second;
-        if (currentTime - client.lastActivity_ > TIMEOUT)
-        {
-            //remove print it disconnected all the time
-            removeClient(client.getSocket());
-            it = clients_.erase(it);
-        }
-        else
-            it++;
     }
 }

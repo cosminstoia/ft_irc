@@ -11,7 +11,6 @@
 #define MAX_CHARS 1024
 #define MAX_CLIENTS 100
 #define MAX_Q_CLIENTS 5
-#define TIMEOUT 300 // 5min
 
 // error macros
 #define ERR_NOSUCHCHANNEL "403: No such channel"

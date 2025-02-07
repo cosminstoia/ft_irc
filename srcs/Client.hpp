@@ -47,8 +47,9 @@ class Client
         void joinChannel(const std::string& channel) { joinedChannels_.insert(channel); }
         
         // ping pong mechanism
-        time_t lastActivity_;
-        time_t lastPingtime_;
-        void updateActivity() { lastActivity_ = time(nullptr); }
-        void updatePingtime() { lastPingtime_ = time(nullptr); }
+        std::chrono::system_clock::time_point lastActivity_;
+        std::chrono::system_clock::time_point lastPingtime_;
+        bool    awaitingPong_;
+        void updateActivity() { lastActivity_ = std::chrono::system_clock::now(); }
+        void updatePingtime() { lastPingtime_ = std::chrono::system_clock::now(); }
 };

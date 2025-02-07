@@ -46,7 +46,7 @@ class Server
         std::vector<pollfd> pollFds_;           // Poll file descriptors
         std::map<std::string, Channel> channels_;
         std::map<int,Client> clients_;          // socket as key, Client as value
-        bool        isRunning_;                 // Server running flag      
+        bool        isRunning_;                 // Server running flag  
 
         // Command storage
         std::unordered_map<std::string, std::function<void(int, std::string const&)>> commandMap_;
@@ -63,12 +63,13 @@ class Server
         void        cmdPrivmsg(int clientSocket, std::string const& params);
         void        cmdQuit(int clientSocket, std::string const& params);
         bool        cmdPass(int clientSocket, std::string const& params);
+        void        cmdPong(int clientSocket, std::string const& params);
 
         // Utils commands
         void        connectClient(int clientSocket);
         void        removeClient(int clientSocket);
         void        sendToClient(int clientSocket, std::string const& message);
-        //bool        checkAuthentification(int clientSocket, std::string const& msg);
+        void        sendPeriodicPings(int clientSocket);
 
         // Pars Input
         bool       parseInput(Client& client, std::string const& message);
@@ -82,9 +83,6 @@ class Server
 
         static Server* instance; // static pointer to the server instance
         static void sSignalHandler(int signum); // static warp for signal handler
-
-        // ping pong mechanism
-        void       checkTimeouts();
 
         //welcom ascii
         void        asciiArt();

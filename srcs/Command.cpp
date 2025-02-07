@@ -10,6 +10,7 @@ void Server::setupCmds()
     commandMap_["TOPIC"] = std::bind(&Server::cmdQuit, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["KICK"] = std::bind(&Server::cmdQuit, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["PASS"] = std::bind(&Server::cmdPass, this, std::placeholders::_1, std::placeholders::_2);
+    commandMap_["PONG"] = std::bind(&Server::cmdPong, this, std::placeholders::_1, std::placeholders::_2);
 }
 
 void Server::cmdNick(int clientSocket, std::string const& params)
@@ -43,7 +44,7 @@ void Server::cmdJoin(int clientSocket, std::string const& params)
         sendToClient(clientSocket, "No channel given");
         return;
     }
-    sendToClient(clientSocket, "JOINED: " + params);
+    //sendToClient(clientSocket, "JOINED: " + params);
     printInfoToServer(INFO, "Client joined channel " + params);
 }
 void Server::cmdPrivmsg(int clientSocket, std::string const& params)
@@ -100,8 +101,12 @@ bool Server::cmdPass(int clientSocket, std::string const& params)
         clients_.erase(clientSocket);
         return false;
     }
-    printInfoToServer(DISCONNECTION, "Client disconnected!");
-    sendToClient(clientSocket, "Client disconnected!");
-    return false;
 }
 
+void Server::cmdPong(int clientSocket, std::string const& params)
+{
+    (void)params;
+    printInfoToServer(PONG, "Received PONG from client");
+    clients_[clientSocket].updateActivity();
+    clients_[clientSocket].awaitingPong_= false;
+}
