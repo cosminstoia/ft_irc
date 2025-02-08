@@ -8,8 +8,8 @@ Client::Client()
       loggedIn_(false),
       receiveBuffer_(""),
       bytes_(0),
-      lastActivity_(),
-      lastPingtime_()
+      lastPing_(std::chrono::system_clock::now()),
+      lastPong_(std::chrono::system_clock::now())
 {}
 Client::Client(const std::string& ipAddress, int socket)
     : ipAddress_(ipAddress),
@@ -20,8 +20,8 @@ Client::Client(const std::string& ipAddress, int socket)
       receiveBuffer_(""),
       clientPassword_(""),
       bytes_(0),
-      lastActivity_(),
-      lastPingtime_()
+      lastPing_(std::chrono::system_clock::now()),
+      lastPong_(std::chrono::system_clock::now())
 {}
 
 bool Client::operator==(const Client& other) const 

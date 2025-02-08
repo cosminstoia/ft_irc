@@ -10,31 +10,46 @@ void Server::setupCmds()
     commandMap_["TOPIC"] = std::bind(&Server::cmdQuit, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["KICK"] = std::bind(&Server::cmdQuit, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["PASS"] = std::bind(&Server::cmdPass, this, std::placeholders::_1, std::placeholders::_2);
-    commandMap_["PONG"] = std::bind(&Server::cmdPong, this, std::placeholders::_1, std::placeholders::_2);
+    commandMap_["PONG"] = std::bind(&Server::cmdQuit, this, std::placeholders::_1, std::placeholders::_2);
 }
 
 void Server::cmdNick(int clientSocket, std::string const& params)
 {
-    if (params.empty())
+    if (params.empty()) 
     {
-        sendToClient(clientSocket, "No nickname provided!");
+        sendToClient(clientSocket, "461 NICK :Not enough parameters\r\n");
         return;
     }
-    clients_[clientSocket].setNickName(params);
-    sendToClient(clientSocket, "NICKNAME_SET: " + params);
-    printInfoToServer(INFO, "Nickname set to: " + params);
+
+    for (const auto& pair : clients_) 
+    {
+        if (pair.second.getNickName() == params) 
+        {
+            sendToClient(clientSocket, ERR_NICKNAMEINUSE(params));
+            return;
+        }
+    }
+    Client& client = clients_[clientSocket];
+    client.setNickName(params);
+    if (!client.getUserName().empty() && !client.isLoggedIn()) 
+    {
+        welcomeClient(clientSocket);
+    }
 }
 
 void Server::cmdUser(int clientSocket, std::string const& params)
 {
-    if (params.empty())
+    if (params.empty()) 
     {
-        sendToClient(clientSocket, "No username given");
+        sendToClient(clientSocket, ERR_NEEDMOREPARAMS(params));
         return;
     }
-    clients_[clientSocket].setUserName(params);
-    sendToClient(clientSocket, "USERNAME_SET: " + params);
-    printInfoToServer(INFO, "Username set to: " + params);
+    Client& client = clients_[clientSocket];
+    client.setUserName(params);
+    if (!client.getNickName().empty() && !client.isLoggedIn())
+    {
+        welcomeClient(clientSocket);
+    }
 }
 
 void Server::cmdJoin(int clientSocket, std::string const& params)
@@ -44,7 +59,7 @@ void Server::cmdJoin(int clientSocket, std::string const& params)
         sendToClient(clientSocket, "No channel given");
         return;
     }
-    //sendToClient(clientSocket, "JOINED: " + params);
+    sendToClient(clientSocket, "JOINED: " + params);
     printInfoToServer(INFO, "Client joined channel " + params);
 }
 void Server::cmdPrivmsg(int clientSocket, std::string const& params)
@@ -106,7 +121,10 @@ bool Server::cmdPass(int clientSocket, std::string const& params)
 void Server::cmdPong(int clientSocket, std::string const& params)
 {
     (void)params;
-    printInfoToServer(PONG, "Received PONG from client");
-    clients_[clientSocket].updateActivity();
-    clients_[clientSocket].awaitingPong_= false;
+    auto it = clients_.find(clientSocket);
+    if (it != clients_.end())
+    {
+        it->second.updatePongReceived();
+        printInfoToServer(PONG, "Received PONG from client on socket" + std::to_string(clientSocket));
+    }
 }

@@ -35,8 +35,9 @@ Server::Server(int port, std::string const& password)
     //listen for connections
     if (listen(serverSocket_, MAX_Q_CLIENTS) < 0)
         printErrorExit("Listen failed!", true);
-    
-    printInfoToServer(INFO, "Server listening on ip:port " + std::to_string(port_));
+
+    std::string serverIp = inet_ntoa(serverAddr_.sin_addr);
+    printInfoToServer(INFO, "Server listening on " + serverIp + ":" + std::to_string(port_));
     pollFds_.push_back((struct pollfd){serverSocket_, POLLIN, 0});
     setupCmds();
     setupSignalHandler();
@@ -72,9 +73,16 @@ void Server::start()
                 if (pollFds_[i].fd == serverSocket_)
                     acceptClient(pollFds_);
                 else
-                    handleClient(pollFds_[i].fd);
+                {
+                    auto it = clients_.find(pollFds_[i].fd);
+                    if (it != clients_.end())
+                        handleClient(it->second);
+                    else
+                        printInfoToServer(WARNING, "Client not found!");
+                }
             }
         }
+        pingClients();
     }
     printInfoToServer(INFO, "Server shutting down...");
 }
@@ -85,7 +93,6 @@ void Server::acceptClient(std::vector<pollfd>& pollFds_)
     socklen_t clientAddrLen = sizeof(clientAddr);
 
     int clientSocket = accept(serverSocket_, (struct sockaddr*)&clientAddr, &clientAddrLen);
-    sendPeriodicPings(clientSocket);
     if (clientSocket < 0)
     {
         printErrorExit("Accept failed!", false);
@@ -96,31 +103,27 @@ void Server::acceptClient(std::vector<pollfd>& pollFds_)
         close(clientSocket);
         return printInfoToServer(WARNING, "Max clients reached, closing connection.");
     }
-    fcntl(clientSocket, F_SETFL, O_NONBLOCK);
     std::string clientIp = inet_ntoa(clientAddr.sin_addr);
     pollFds_.push_back({ clientSocket, POLLIN, 0 });
     clients_.emplace(clientSocket, Client(clientIp, clientSocket));
+    printInfoToServer(CONNECTION, "Client connected from " + clientIp);
 }
 
-// i need to add here the chekc for ping pong
-void Server::handleClient(int clientSocket) 
+void Server::handleClient(Client& client) 
 {
-    auto it = clients_.find(clientSocket);
-    if (it != clients_.end()) 
+    char buffer[MAX_CHARS];
+    ssize_t bytesRead = recv(client.getSocket(), buffer, sizeof(buffer) - 1, 0);
+    if (bytesRead <= 0)
     {
-        Client& client = it->second;
-        char buffer[MAX_CHARS];
-        ssize_t bytesRead = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-        if (bytesRead < 0)
+        if (bytesRead < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
         {
-            if (errno != EAGAIN && errno != EWOULDBLOCK) 
-            {
-                printErrorExit("recv failed!", false);
-                return;
-            }
+            std::cout << "No data to read.. revc faile.. why are we here ?" << std::endl;
+            return; 
         }
-        buffer[bytesRead] = '\0';
-        client.appendToReceiveBuffer(buffer, bytesRead);
-        connectClient(clientSocket);
+        removeClient(client.getSocket());
+        return;
     }
+    buffer[bytesRead] = '\0';
+    client.appendToReceiveBuffer(buffer, bytesRead);
+    connectClient(client.getSocket());
 }

@@ -69,20 +69,25 @@ class Server
         void        connectClient(int clientSocket);
         void        removeClient(int clientSocket);
         void        sendToClient(int clientSocket, std::string const& message);
-        void        sendPeriodicPings(int clientSocket);
+        std::string getSPass() const;
 
         // Pars Input
-        bool       parseInput(Client& client, std::string const& message);
+        bool        parseInput(Client& client, std::string const& message);
+        bool        parseInitialInput(Client& client, const std::string& message);
+
     public:
         Server(int port, std::string const& password);
         ~Server();
 
         void       start();
         void       acceptClient(std::vector<pollfd>& pollFds_);
-        void       handleClient(int clientSocket);
+        void       handleClient(Client& client);
 
         static Server* instance; // static pointer to the server instance
         static void sSignalHandler(int signum); // static warp for signal handler
+
+        void        welcomeClient(int clientSocket); 
+        void        pingClients();
 
         //welcom ascii
         void        asciiArt();

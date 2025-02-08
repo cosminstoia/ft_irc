@@ -13,9 +13,7 @@ void Server::connectClient(int clientSocket)
         {
             std::string respond = "CAP * LS :\r\n";
             send(clientSocket, respond.c_str(), respond.size(), 0);
-            // sendToClient(clientSocket, "CAP * LS :");
             printInfoToServer(INFO, "Sent CAP LS to client");
-            //return;
         }
 		std::string buffer = client.getBuffer();
         client.setBuffer(buffer.erase(0, pos + 2));
@@ -24,6 +22,8 @@ void Server::connectClient(int clientSocket)
 	}
 }
 
+// this need to be more robust adn also delte the other staf in clients
+// for now if i close a client and try to reconnect it will tel em username is in use
 void Server::removeClient(int clientSocket)
 {
     for (size_t i = 0; i < pollFds_.size(); i++)
@@ -49,6 +49,11 @@ void Server::sendToClient(int clientSocket, std::string const& message)
     }
 }
 
+std::string Server::getSPass() const
+{
+    return password_;
+}
+
 
 void Server::asciiArt()
 {
@@ -62,25 +67,59 @@ void Server::asciiArt()
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░)" << std::endl;
 }
 
-void Server::sendPeriodicPings(int clientSocket) 
+void Server::welcomeClient(int clientSocket)
 {
-    auto now = std::chrono::system_clock::now();
-    // If you're using a mutex for thread safety, uncomment the following line
-    // std::lock_guard<std::mutex> lock(mutex_);
+    Client& client = clients_[clientSocket];
+    std::string nick = client.getNickName();
+    if (nick.empty())
+    {
+        sendToClient(clientSocket, ERR_NEEDMOREPARAMS(nick));
+        return;
+    }
+    for (auto& pair : clients_)
+    {
+        if (pair.second.getNickName() == nick && pair.first != clientSocket)
+        {
+            sendToClient(clientSocket, ERR_NICKNAMEINUSE(nick));
+            return;
+        }
+    }
+    sendToClient(clientSocket, RPL_WELCOME(nick));
+    sendToClient(clientSocket, RPL_YOURHOST);
+    sendToClient(clientSocket, RPL_CREATED);
+    sendToClient(clientSocket, RPL_MYINFO);
+}
 
-    if (now - clients_[clientSocket].lastPingtime_ >= std::chrono::seconds(60)) {
-        clients_[clientSocket].lastPingtime_ = now;
+void Server::pingClients()
+{
+    std::vector<int> timeoutClients;
+    for (auto& pair : clients_) 
+    {
+        int clientSocket = pair.first;
+        Client& client = pair.second;
+
+        //only ping pong it if logged in
+        if(!client.isLoggedIn())
+            continue;
+        
+        if (client.hasTimedOut())
+        {
+            timeoutClients.push_back(clientSocket);
+            continue;
+        }
+        
+        if (client.needsPing())
+        {
+            std::string pingMessage = "PING :" + std::to_string(std::time(nullptr)) + "\r\n";
+            sendToClient(clientSocket, pingMessage);
+            client.setPingSent();
+            printInfoToServer(PING, "Sent PING to client on socket " + std::to_string(clientSocket));
+        }
     }
 
-    // Convert to time_t if needed
-    std::time_t epoch_seconds = std::chrono::system_clock::to_time_t(now);
-    std::string pingMessage = "PING " + std::to_string(epoch_seconds) + "\r\n";
-
-    if (!clients_[clientSocket].awaitingPong_) // Don't send another PING if one is already pending
+    for (int socket : timeoutClients)
     {
-        sendToClient(clientSocket, pingMessage);
-        clients_[clientSocket].updatePingtime();
-        clients_[clientSocket].awaitingPong_ = true;
-        printInfoToServer(PING, "Sent PING to client");
+        printInfoToServer(INFO, "Client on socket " + std::to_string(socket) + " timed out"); // debug now
+        removeClient(socket);
     }
 }

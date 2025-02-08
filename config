@@ -1,0 +1,18 @@
+servers = (
+  {
+    address = "localhost";
+    port = "22345";
+    use_tls = "no";
+    autoconnect = "yes";
+    password = "password";
+  },
+);
+
+settings = {
+  core = {
+    real_name = "user123123";
+    nick = "user123123";
+    user_name = "user123123";
+  };
+  "fe-text" = { actlist_sort = "refnum"; };
+};
