@@ -1,6 +1,6 @@
 #include "Server.hpp"
 
-void printInfoToServer(messageType type, std::string const& msg)
+void printInfoToServer(messageType type, std::string const& msg, bool exitP)
 {
     // Get current time
     std::time_t now = std::time(nullptr);
@@ -25,11 +25,7 @@ void printInfoToServer(messageType type, std::string const& msg)
 
     std::cout << color << "[" << typeStr << "]" << GRAY " [" << oss.str() << "] "
                 << RESET << msg << std::endl;
-}
-
-void printErrorExit(std::string const& msg, bool exitP)
-{
-    std::cerr << RED "Error: " RESET << msg << std::endl;
-    if (exitP)
+    if(typeStr == "ERROR" && exitP)
         exit(1);
+
 }

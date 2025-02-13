@@ -8,13 +8,6 @@ void Server::connectClient(int clientSocket)
 	while ((pos = client.getBuffer().find("\r\n")) != std::string::npos) 
     {
 		std::string message = client.getBuffer().substr(0, pos);
-        std::cout << "-----input------: " << message << std::endl;
-		if (message.substr(0, 6) == "CAP LS")
-        {
-            std::string respond = "CAP * LS :\r\n";
-            send(clientSocket, respond.c_str(), respond.size(), 0);
-            printInfoToServer(INFO, "Sent CAP LS to client");
-        }
 		std::string buffer = client.getBuffer();
         client.setBuffer(buffer.erase(0, pos + 2));
 		if(!parseInput(client, message))
@@ -24,17 +17,23 @@ void Server::connectClient(int clientSocket)
 
 // this need to be more robust adn also delte the other staf in clients
 // for now if i close a client and try to reconnect it will tel em username is in use
-void Server::removeClient(int clientSocket)
+void Server::removeClient(int clientSocket) 
 {
-    for (size_t i = 0; i < pollFds_.size(); i++)
+    auto it = clients_.find(clientSocket);
+    if (it != clients_.end()) 
     {
-        if (pollFds_[i].fd == clientSocket)
+        Client& client = it->second;
+        close(clientSocket);
+        for (size_t i = 0; i < pollFds_.size(); i++) 
         {
-            close(clientSocket);
-            pollFds_.erase(pollFds_.begin() + i);
-            printInfoToServer(DISCONNECTION, "Client disconnected!");
-            break;
+            if (pollFds_[i].fd == clientSocket) 
+            {
+                pollFds_.erase(pollFds_.begin() + i);
+                break;
+            }
         }
+        clients_.erase(it);
+        printInfoToServer(DISCONNECTION, "Client disconnected: " + client.getNickName(), false);
     }
 }
 
@@ -45,7 +44,7 @@ void Server::sendToClient(int clientSocket, std::string const& message)
     if (bytesSend < 0)
     {
         std::cout << fullMessage << std::endl;
-        printErrorExit("send failed!", false);
+        printInfoToServer(ERROR, "Send function failed!", false);
     }
 }
 
@@ -81,10 +80,12 @@ void Server::welcomeClient(int clientSocket)
         if (pair.second.getNickName() == nick && pair.first != clientSocket)
         {
             sendToClient(clientSocket, ERR_NICKNAMEINUSE(nick));
+            printInfoToServer(WARNING, "User already connected", false);
+            client.setLoggedIn(true);
             return;
         }
     }
-    sendToClient(clientSocket, RPL_WELCOME(nick));
+    sendToClient(clientSocket, RPL_WELCOME(client.getNickName()));
     sendToClient(clientSocket, RPL_YOURHOST);
     sendToClient(clientSocket, RPL_CREATED);
     sendToClient(clientSocket, RPL_MYINFO);
@@ -113,13 +114,13 @@ void Server::pingClients()
             std::string pingMessage = "PING :" + std::to_string(std::time(nullptr)) + "\r\n";
             sendToClient(clientSocket, pingMessage);
             client.setPingSent();
-            printInfoToServer(PING, "Sent PING to client on socket " + std::to_string(clientSocket));
+            printInfoToServer(PING, "Sent PING to client on socket " + std::to_string(clientSocket), false);
         }
     }
 
     for (int socket : timeoutClients)
     {
-        printInfoToServer(INFO, "Client on socket " + std::to_string(socket) + " timed out"); // debug now
+        printInfoToServer(INFO, "Client on socket " + std::to_string(socket) + " timed out", false); // debug now
         removeClient(socket);
     }
 }

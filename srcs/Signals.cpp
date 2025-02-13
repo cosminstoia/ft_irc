@@ -22,5 +22,5 @@ void Server::setupSignalHandler()
     sa.sa_handler = Server::sSignalHandler;
     sigemptyset(&sa.sa_mask);
     if (sigaction(SIGINT, &sa, NULL) == -1)
-        printErrorExit("Signal handler failed!", true);
+        printInfoToServer(ERROR, "Signal handler failed!", true);
 }

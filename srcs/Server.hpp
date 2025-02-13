@@ -73,7 +73,7 @@ class Server
 
         // Pars Input
         bool        parseInput(Client& client, std::string const& message);
-        bool        parseInitialInput(Client& client, const std::string& message);
+        bool        parseInitialInput(Client& client, const std::string command, std::string parameters);
 
     public:
         Server(int port, std::string const& password);
@@ -93,6 +93,5 @@ class Server
         void        asciiArt();
 };
 
-// Extra Functions
-void       printInfoToServer(messageType type, std::string const& msg);
-void       printErrorExit(std::string const& msg, bool exitP = false);
+// Print Functions
+void       printInfoToServer(messageType type, std::string const& msg, bool exitP);

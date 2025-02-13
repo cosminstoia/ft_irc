@@ -29,12 +29,9 @@ void Server::cmdNick(int clientSocket, std::string const& params)
             return;
         }
     }
-    Client& client = clients_[clientSocket];
-    client.setNickName(params);
-    if (!client.getUserName().empty() && !client.isLoggedIn()) 
-    {
+    clients_[clientSocket].setNickName(params);
+    if (!clients_[clientSocket].getUserName().empty() && !clients_[clientSocket].isLoggedIn()) 
         welcomeClient(clientSocket);
-    }
 }
 
 void Server::cmdUser(int clientSocket, std::string const& params)
@@ -47,9 +44,7 @@ void Server::cmdUser(int clientSocket, std::string const& params)
     Client& client = clients_[clientSocket];
     client.setUserName(params);
     if (!client.getNickName().empty() && !client.isLoggedIn())
-    {
         welcomeClient(clientSocket);
-    }
 }
 
 void Server::cmdJoin(int clientSocket, std::string const& params)
@@ -60,7 +55,7 @@ void Server::cmdJoin(int clientSocket, std::string const& params)
         return;
     }
     sendToClient(clientSocket, "JOINED: " + params);
-    printInfoToServer(INFO, "Client joined channel " + params);
+    printInfoToServer(INFO, "Client joined channel " + params, false);
 }
 void Server::cmdPrivmsg(int clientSocket, std::string const& params)
 {
@@ -78,7 +73,7 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
     std::string recipient = params.substr(0, sp);
     std::string message = params.substr(sp + 1);
     sendToClient(clientSocket, "PRIVMSG sent to " + recipient + ": " + message);
-    printInfoToServer(INFO, "PRIVMSG sent to " + recipient + ": " + message);
+    printInfoToServer(INFO, "PRIVMSG sent to " + recipient + ": " + message, false);
 }
 
 void Server::cmdQuit(int clientSocket, std::string const& params)
@@ -93,7 +88,7 @@ void Server::cmdQuit(int clientSocket, std::string const& params)
             break;
         }
     }
-    printInfoToServer(DISCONNECTION, "Client disconnected!");
+    removeClient(clientSocket);
 }
 
 bool Server::cmdPass(int clientSocket, std::string const& params)
@@ -104,13 +99,13 @@ bool Server::cmdPass(int clientSocket, std::string const& params)
     if (pass == password_ && !pass.empty())
     {
         clients_[clientSocket].setLoggedIn(true);
-        printInfoToServer(INFO, "Authentication successful!");
+        printInfoToServer(INFO, "Authentication successful!", false);
         sendToClient(clientSocket, "Authentication successful!");
         return true;
     }
     else
     {
-        printInfoToServer(ERROR, " Incorrect password! Disconnecting!");
+        printInfoToServer(ERROR, " Incorrect password! Disconnecting!", false);
         sendToClient(clientSocket, "Incorrect password! Disconnecting!");
         close(clientSocket);
         clients_.erase(clientSocket);
@@ -125,6 +120,6 @@ void Server::cmdPong(int clientSocket, std::string const& params)
     if (it != clients_.end())
     {
         it->second.updatePongReceived();
-        printInfoToServer(PONG, "Received PONG from client on socket" + std::to_string(clientSocket));
+        printInfoToServer(PONG, "Received PONG from client on socket " + std::to_string(clientSocket), false);
     }
 }

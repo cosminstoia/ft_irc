@@ -12,15 +12,15 @@ Server::Server(int port, std::string const& password)
 
     serverSocket_ = socket(AF_INET, SOCK_STREAM, 0);     //setup server address
     if (serverSocket_ < 0)
-        printErrorExit("Socket creation failed!", true);
+        printInfoToServer(ERROR, "Socket creation failed!", true);
 
     int opt = 1;
     if (setsockopt(serverSocket_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
-        printErrorExit("Failed to set socket options!", true);
+        printInfoToServer(ERROR, "Failed to set socket options!", true);
 
     // only run in non-blocking mode. to be able to handle multiple clients
     if (fcntl(serverSocket_, F_SETFL, O_NONBLOCK) < 0) 
-        printErrorExit("Failed to set socket to non-blocking mode!", true);
+        printInfoToServer(ERROR, "Failed to set socket to non-blocking mode!", true);
 
     //configure server address
     //we use ipv4; for ipv6, we would use AF_INET6
@@ -30,14 +30,14 @@ Server::Server(int port, std::string const& password)
     
     //bind the socket to the server address
     if (bind(serverSocket_, (struct sockaddr *)&serverAddr_, sizeof(serverAddr_)) < 0)
-        printErrorExit("Bind failed!", true);
+        printInfoToServer(ERROR, "Bind failed!", true);
 
     //listen for connections
     if (listen(serverSocket_, MAX_Q_CLIENTS) < 0)
-        printErrorExit("Listen failed!", true);
+    printInfoToServer(ERROR, "Listen failed!", true);
 
     std::string serverIp = inet_ntoa(serverAddr_.sin_addr);
-    printInfoToServer(INFO, "Server listening on " + serverIp + ":" + std::to_string(port_));
+    printInfoToServer(INFO, "Server listening on " + serverIp + ":" + std::to_string(port_), false);
     pollFds_.push_back((struct pollfd){serverSocket_, POLLIN, 0});
     setupCmds();
     setupSignalHandler();
@@ -58,12 +58,12 @@ Server::~Server()
 void Server::start() 
 {
     // asciiArt();
-    printInfoToServer(INFO, "Waiting for conections...");
+    printInfoToServer(INFO, "Waiting for conections...", false);
     while (isRunning_)
     {
         if (poll(pollFds_.data(), pollFds_.size(), 0) == -1 && errno != EINTR)
         {
-            printErrorExit("Poll failed!", false);
+            printInfoToServer(ERROR, "Poll failed!", false);
             continue;
         }
         for (size_t i = 0; i < pollFds_.size(); i++)
@@ -78,13 +78,13 @@ void Server::start()
                     if (it != clients_.end())
                         handleClient(it->second);
                     else
-                        printInfoToServer(WARNING, "Client not found!");
+                        printInfoToServer(WARNING, "Client not found!", false);
                 }
             }
         }
         pingClients();
     }
-    printInfoToServer(INFO, "Server shutting down...");
+    printInfoToServer(INFO, "Server shutting down...", false);
 }
 
 void Server::acceptClient(std::vector<pollfd>& pollFds_) 
@@ -95,18 +95,19 @@ void Server::acceptClient(std::vector<pollfd>& pollFds_)
     int clientSocket = accept(serverSocket_, (struct sockaddr*)&clientAddr, &clientAddrLen);
     if (clientSocket < 0)
     {
-        printErrorExit("Accept failed!", false);
+        printInfoToServer(ERROR, "Accept failed!", false);
         return;
     }
     if (pollFds_.size() >= MAX_CLIENTS)
     {
         close(clientSocket);
-        return printInfoToServer(WARNING, "Max clients reached, closing connection.");
+        return printInfoToServer(WARNING, "Max clients reached, closing connection.", false);
     }
     std::string clientIp = inet_ntoa(clientAddr.sin_addr);
     pollFds_.push_back({ clientSocket, POLLIN, 0 });
     clients_.emplace(clientSocket, Client(clientIp, clientSocket));
-    printInfoToServer(CONNECTION, "Client connected from " + clientIp);
+    std::cout << clients_[clientSocket].isLoggedIn() << std::endl;
+    printInfoToServer(CONNECTION, "Client connected from " + clientIp, false);
 }
 
 void Server::handleClient(Client& client) 

@@ -1,12 +1,11 @@
 #include "Server.hpp"
 #include "Client.hpp"
 
-void parseMessage(const std::string& message, std::string& prefix, std::string& command, std::string& parameters)
+static void parseMessage(const std::string& message, std::string& command, std::string& parameters)
 {
     size_t pos = 0;
     size_t end = message.size();
 
-    prefix.clear();
     command.clear();
     parameters.clear();
     while (pos < end && (message[pos] == ' ' || message[pos] == '\t'))
@@ -17,7 +16,6 @@ void parseMessage(const std::string& message, std::string& prefix, std::string& 
         size_t prefixEnd = message.find(' ', pos);
         if (prefixEnd == std::string::npos)
             throw std::runtime_error("Error: Invalid message format (missing command).");
-        prefix = message.substr(pos, prefixEnd - pos);
         pos = prefixEnd + 1;
     }
     while (pos < end && (message[pos] == ' ' || message[pos] == '\t'))
@@ -37,10 +35,9 @@ void parseMessage(const std::string& message, std::string& prefix, std::string& 
 
 bool Server::parseInput(Client& client, const std::string& message) 
 {
-    std::string prefix;
     std::string command;
     std::string parameters;
-    parseMessage(message, prefix, command, parameters);
+    parseMessage(message, command, parameters);
     // Always allow CAP commands
     if (command == "CAP") 
     {
@@ -60,15 +57,16 @@ bool Server::parseInput(Client& client, const std::string& message)
         // Only allow registration commands
         if (command == "PASS" || command == "NICK" || command == "USER")
         {
-            if (parseInitialInput(client, message))
+            if (parseInitialInput(client, command, parameters))
             {
                 // Check if we have all required information
                 if (!client.getNickName().empty() && 
-                    !client.getUserName().empty() && 
-                    !client.getPassword().empty()) 
+                !client.getUserName().empty() && 
+                !client.getPassword().empty()) 
                 {
-                    client.setLoggedIn(true);
                     welcomeClient(client.getSocket());
+                    client.setLoggedIn(true);
+                    return false;
                 }
             }
             return true;
@@ -99,21 +97,12 @@ bool Server::parseInput(Client& client, const std::string& message)
     return false;
 }
 
-bool Server::parseInitialInput(Client& client, const std::string& message) 
+bool Server::parseInitialInput(Client& client, const std::string command, std::string parameters) 
 {
-    std::string prefix;
-    std::string command;
-    std::string parameters;
-
-    parseMessage(message, prefix, command, parameters);
-
-     if (command == "PASS") 
-     {
-        if (parameters == getSPass()) 
-        {
-            client.setPassword(parameters);
-            return true;
-        } 
+    if (command == "PASS") 
+    {
+        if (parameters == getSPass() && !getSPass().empty()) 
+        client.setPassword(parameters);
         else 
         {
             sendToClient(client.getSocket(), ERR_PASSWDMISMATCH);
@@ -122,21 +111,20 @@ bool Server::parseInitialInput(Client& client, const std::string& message)
     }
     else if (command == "NICK")
     {
-        for (const auto& pair : clients_) 
-        {
-            if (pair.second.getNickName() == parameters) 
-            {
-                sendToClient(client.getSocket(), ERR_NICKNAMEINUSE(parameters));
-                return false;
-            }
-        }
+        if (client.getNickName() != parameters) 
         client.setNickName(parameters);
-        return true;
+        else
+        {
+            sendToClient(client.getSocket(), ERR_NICKNAMEINUSE(parameters));
+            return false;;
+        }
     }
     else if (command == "USER")
     {
+        if (client.getUserName() != parameters) 
         client.setUserName(parameters);
-        return true;
+        else
+        return false;;
     }
-    return false;
+    return true;
 }
