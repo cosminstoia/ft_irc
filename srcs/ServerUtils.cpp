@@ -9,14 +9,13 @@ void Server::connectClient(int clientSocket)
     {
 		std::string message = client.getBuffer().substr(0, pos);
 		std::string buffer = client.getBuffer();
+        std::cout << "-----input------: " << message << std::endl;
         client.setBuffer(buffer.erase(0, pos + 2));
 		if(!parseInput(client, message))
             return;
 	}
 }
 
-// this need to be more robust adn also delte the other staf in clients
-// for now if i close a client and try to reconnect it will tel em username is in use
 void Server::removeClient(int clientSocket) 
 {
     auto it = clients_.find(clientSocket);
@@ -72,23 +71,20 @@ void Server::welcomeClient(int clientSocket)
     std::string nick = client.getNickName();
     if (nick.empty())
     {
-        sendToClient(clientSocket, ERR_NEEDMOREPARAMS(nick));
+        sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, nick));
         return;
     }
     for (auto& pair : clients_)
     {
         if (pair.second.getNickName() == nick && pair.first != clientSocket)
         {
-            sendToClient(clientSocket, ERR_NICKNAMEINUSE(nick));
+            sendToClient(clientSocket, ERR_NICKNAMEINUSE(serverIp_, nick));
             printInfoToServer(WARNING, "User already connected", false);
             client.setLoggedIn(true);
             return;
         }
     }
-    sendToClient(clientSocket, RPL_WELCOME(client.getNickName()));
-    sendToClient(clientSocket, RPL_YOURHOST);
-    sendToClient(clientSocket, RPL_CREATED);
-    sendToClient(clientSocket, RPL_MYINFO);
+    sendToClient(clientSocket, RPL_WELCOME(serverIp_, nick));
 }
 
 void Server::pingClients()
@@ -98,17 +94,11 @@ void Server::pingClients()
     {
         int clientSocket = pair.first;
         Client& client = pair.second;
-
-        //only ping pong it if logged in
-        if(!client.isLoggedIn())
-            continue;
-        
         if (client.hasTimedOut())
         {
             timeoutClients.push_back(clientSocket);
             continue;
         }
-        
         if (client.needsPing())
         {
             std::string pingMessage = "PING :" + std::to_string(std::time(nullptr)) + "\r\n";
@@ -117,10 +107,19 @@ void Server::pingClients()
             printInfoToServer(PING, "Sent PING to client on socket " + std::to_string(clientSocket), false);
         }
     }
-
     for (int socket : timeoutClients)
     {
         printInfoToServer(INFO, "Client on socket " + std::to_string(socket) + " timed out", false); // debug now
         removeClient(socket);
     }
+}
+
+int Server::findClientByNick(const std::string& nick)
+{
+    for (const auto& pair : clients_)
+    {
+        if (pair.second.getNickName() == nick)
+            return pair.first;
+    }
+    return -1;
 }

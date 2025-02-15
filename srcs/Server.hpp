@@ -63,13 +63,20 @@ class Server
         void        cmdPrivmsg(int clientSocket, std::string const& params);
         void        cmdQuit(int clientSocket, std::string const& params);
         bool        cmdPass(int clientSocket, std::string const& params);
+        void        cmdPing(int clientSocket, std::string const& params);
         void        cmdPong(int clientSocket, std::string const& params);
+        void        cmdTopic(int clientSocket, std::string const& params);
+        void        cmdKick(int clientSocket, std::string const& params);
+        void        cmdInvite(int clientSocket, std::string const& params);
+        void        cmdMode(int clientSocket, std::string const& params);
+        void        validateParams(int clientSocket, const std::string& params, const std::string& command);
 
         // Utils commands
         void        connectClient(int clientSocket);
         void        removeClient(int clientSocket);
         void        sendToClient(int clientSocket, std::string const& message);
         std::string getSPass() const;
+        int         findClientByNick(const std::string& nick);
 
         // Pars Input
         bool        parseInput(Client& client, std::string const& message);

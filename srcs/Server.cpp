@@ -36,8 +36,8 @@ Server::Server(int port, std::string const& password)
     if (listen(serverSocket_, MAX_Q_CLIENTS) < 0)
     printInfoToServer(ERROR, "Listen failed!", true);
 
-    std::string serverIp = inet_ntoa(serverAddr_.sin_addr);
-    printInfoToServer(INFO, "Server listening on " + serverIp + ":" + std::to_string(port_), false);
+    serverIp_ = inet_ntoa(serverAddr_.sin_addr);
+    printInfoToServer(INFO, "Server listening on " + serverIp_ + ":" + std::to_string(port_), false);
     pollFds_.push_back((struct pollfd){serverSocket_, POLLIN, 0});
     setupCmds();
     setupSignalHandler();
@@ -106,8 +106,7 @@ void Server::acceptClient(std::vector<pollfd>& pollFds_)
     std::string clientIp = inet_ntoa(clientAddr.sin_addr);
     pollFds_.push_back({ clientSocket, POLLIN, 0 });
     clients_.emplace(clientSocket, Client(clientIp, clientSocket));
-    std::cout << clients_[clientSocket].isLoggedIn() << std::endl;
-    printInfoToServer(CONNECTION, "Client connected from " + clientIp, false);
+    printInfoToServer(CONNECTION, "Client connected from " + clientIp + " on socket " + std::to_string(clientSocket), false);
 }
 
 void Server::handleClient(Client& client) 

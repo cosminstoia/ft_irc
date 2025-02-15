@@ -51,6 +51,17 @@ bool Server::parseInput(Client& client, const std::string& message)
             return true;
         }
     }
+    // Handle PING and PONG commands regardless of login status
+    if (command == "PING") 
+    {
+        cmdPing(client.getSocket(), parameters);
+        return true;
+    }
+    else if (command == "PONG")
+    {
+        cmdPong(client.getSocket(), parameters);
+        return true;
+    }
     // Handle registration commands if not logged in
     if (!client.isLoggedIn())
     {
@@ -61,8 +72,8 @@ bool Server::parseInput(Client& client, const std::string& message)
             {
                 // Check if we have all required information
                 if (!client.getNickName().empty() && 
-                !client.getUserName().empty() && 
-                !client.getPassword().empty()) 
+                    !client.getUserName().empty() && 
+                    !client.getPassword().empty())
                 {
                     welcomeClient(client.getSocket());
                     client.setLoggedIn(true);
@@ -72,28 +83,16 @@ bool Server::parseInput(Client& client, const std::string& message)
             return true;
         }
         // Reject other commands until registered
-        sendToClient(client.getSocket(), ERR_NOTREGISTERED);
+        sendToClient(client.getSocket(), ERR_NOTREGISTERED(serverIp_));
         return false;
     }
-    // Always handle PING/PONG regardless of registration
-    if (command == "PING") 
-    {
-        std::string response = "PONG :" + parameters + "\r\n";
-        sendToClient(client.getSocket(), response);
-        return true;
-    }
-    else if (command == "PONG")
-    {
-        cmdPong(client.getSocket(), parameters);
-        return true;
-    }
-    // Handle normal commands for registered clients
     auto it = commandMap_.find(command);
     if (it != commandMap_.end())
     {
         it->second(client.getSocket(), parameters);
         return true;
     }
+    sendToClient(client.getSocket(), ERR_UNKNOWNCOMMAND(serverIp_, command));
     return false;
 }
 
@@ -105,7 +104,7 @@ bool Server::parseInitialInput(Client& client, const std::string command, std::s
         client.setPassword(parameters);
         else 
         {
-            sendToClient(client.getSocket(), ERR_PASSWDMISMATCH);
+            sendToClient(client.getSocket(), ERR_PASSWDMISMATCH(serverIp_));
             return false;
         }
     }
@@ -115,7 +114,7 @@ bool Server::parseInitialInput(Client& client, const std::string command, std::s
         client.setNickName(parameters);
         else
         {
-            sendToClient(client.getSocket(), ERR_NICKNAMEINUSE(parameters));
+            sendToClient(client.getSocket(), ERR_NICKNAMEINUSE(serverIp_, parameters));
             return false;;
         }
     }
