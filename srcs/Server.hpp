@@ -19,6 +19,7 @@
 #include "Client.hpp"
 #include "Channel.hpp"
 #include "Macros.hpp"
+#include "Bot.hpp"
 
 enum messageType
 {
@@ -35,6 +36,8 @@ enum messageType
     PONG,
 };
 
+class Bot;
+
 class Server
 {
     private:
@@ -47,6 +50,7 @@ class Server
         std::map<std::string, Channel> channels_;
         std::map<int,Client> clients_;          // socket as key, Client as value
         bool        isRunning_;                 // Server running flag  
+        std::unique_ptr<Bot> bot_;
 
         // Command storage
         std::unordered_map<std::string, std::function<void(int, std::string const&)>> commandMap_;
@@ -74,21 +78,22 @@ class Server
         // Utils commands
         void        connectClient(int clientSocket);
         void        removeClient(int clientSocket);
-        void        sendToClient(int clientSocket, std::string const& message);
         std::string getSPass() const;
         int         findClientByNick(const std::string& nick);
-
+        
         // Pars Input
         bool        parseInput(Client& client, std::string const& message);
         bool        parseInitialInput(Client& client, const std::string command, std::string parameters);
-
-    public:
+        
+        public:
         Server(int port, std::string const& password);
         ~Server();
-
+        
         void       start();
         void       acceptClient(std::vector<pollfd>& pollFds_);
         void       handleClient(Client& client);
+        void       sendToClient(int clientSocket, std::string const& message);
+        void       sendMsgToChannel(int clientSocket, const std::string& recipient, const std::string& message);
 
         static Server* instance; // static pointer to the server instance
         static void sSignalHandler(int signum); // static warp for signal handler

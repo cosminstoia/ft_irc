@@ -9,6 +9,7 @@ Server::Server(int port, std::string const& password)
     serverIp_ = "nop";
     isRunning_ = true;
     instance = this; // to be able to use in signal handler
+    bot_ = std::make_unique<Bot>();
 
     serverSocket_ = socket(AF_INET, SOCK_STREAM, 0);     //setup server address
     if (serverSocket_ < 0)
@@ -126,4 +127,10 @@ void Server::handleClient(Client& client)
     buffer[bytesRead] = '\0';
     client.appendToReceiveBuffer(buffer, bytesRead);
     connectClient(client.getSocket());
+}
+
+void Server::sendMsgToChannel(int clientSocket, const std::string& recipient, const std::string& message) 
+{
+    std::string fullMessage = ":Bot!bot@" + serverIp_ + " PRIVMSG " + recipient + " :" + message + "\r\n";
+    sendToClient(clientSocket, fullMessage);
 }

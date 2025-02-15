@@ -9,7 +9,6 @@ void Server::connectClient(int clientSocket)
     {
 		std::string message = client.getBuffer().substr(0, pos);
 		std::string buffer = client.getBuffer();
-        std::cout << "-----input------: " << message << std::endl;
         client.setBuffer(buffer.erase(0, pos + 2));
 		if(!parseInput(client, message))
             return;

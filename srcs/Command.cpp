@@ -84,7 +84,7 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
     }
     std::string recipient = params.substr(0, sp);
     std::string message = params.substr(sp + 1);
-    if (recipient[0] == '#')
+    if (recipient[1] == '#')
     {
         if (channels_.find(recipient) == channels_.end())
         {
@@ -104,12 +104,14 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
         for (int memberSocket : channel.getMembers())
         {
             if (memberSocket != clientSocket)
-            {
                 sendToClient(memberSocket, privmsg);
-            }
         }
-
         printInfoToServer(INFO, "PRIVMSG sent to " + recipient + ": " + message, false);
+    }
+    else if (!message.empty() && message[1] == '!')
+    {
+        printInfoToServer(INFO, "PRIVMSG sent to " + recipient + ": " + message, false);
+        bot_->executeCommand(*this, clientSocket, recipient, message.substr(1));
     }
     else
     {
