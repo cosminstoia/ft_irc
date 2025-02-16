@@ -1,5 +1,7 @@
 #include "Bot.hpp"
 #include <ctime>
+#include <thread>
+#include <chrono>
 
 Bot::Bot() 
 {
@@ -13,7 +15,6 @@ void Bot::helpCommand(Server& server, int clientSocket, const std::string& recip
 {
     std::string helpMessage =
         "---------HELP----------\n"
-        "HELP - Lists all commands\n"
         "KICK - Eject a client from the channel\n"
         "INVITE - Invite a client to a channel\n"
         "TOPIC - Change or view the channel topic\n"
@@ -52,4 +53,18 @@ void Bot::executeCommand(Server& server, int clientSocket, const std::string& re
     }
     else
        server.sendMsgToChannel(clientSocket, recipient, "Unknown command: " + command);
+}
+
+void Bot::botPeriodicBroadcast(Server& server, int clientSocket, const std::string& recipient) 
+{
+    std::string periodicMessage =
+        "Reminder: You can use the following commands:\n"
+        "!help - Lists all commands\n"
+        "!motivate - Get a motivational quote\n";
+    std::istringstream iss(periodicMessage);
+    std::string line;
+    while (std::getline(iss, line)) 
+    {
+        server.sendMsgToChannel(clientSocket, recipient, line);
+    }
 }

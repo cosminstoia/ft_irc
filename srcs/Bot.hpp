@@ -19,4 +19,5 @@ class Bot
         void helpCommand(Server& server, int clientSocket, const std::string& recipient);
         void motivationCommand(Server& server, int clientSocket, const std::string& recipient);
         void executeCommand(Server& server, int clientSocket, const std::string& recipient, const std::string& command);
+        void botPeriodicBroadcast(Server& server, int clientSocket, const std::string& recipient);
 };

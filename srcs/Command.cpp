@@ -11,6 +11,7 @@ void Server::setupCmds()
     commandMap_["KICK"] = std::bind(&Server::cmdKick, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["PING"] = std::bind(&Server::cmdPing, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["PONG"] = std::bind(&Server::cmdPong, this, std::placeholders::_1, std::placeholders::_2);
+    commandMap_["MODE"] = std::bind(&Server::cmdMode, this, std::placeholders::_1, std::placeholders::_2);
 }
 
 void Server::validateParams(int clientSocket, const std::string& params, const std::string& command)
@@ -97,8 +98,6 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
     }
     std::string recipient = params.substr(0, sp);
     std::string message = params.substr(sp + 1);
-    std::cout << "Recipient: " << recipient << " Message: " << message << std::endl; //debug
-
     if (recipient[1] == '#')
     {
         if (channels_.find(recipient) == channels_.end())
@@ -161,6 +160,14 @@ void Server::cmdPing(int clientSocket, std::string const& params)
 void Server::cmdPong(int clientSocket, std::string const& params)
 {
     (void)params;
+    std::string lastKey;
+    for (const auto& pair : channels_) 
+    {
+        const std::string& key = pair.first;
+        std::cout << "Key: " << key << std::endl;
+        lastKey = key;
+    }
+    bot_->botPeriodicBroadcast(*this, clientSocket, lastKey);
     auto it = clients_.find(clientSocket);
     if (it != clients_.end())
     {
