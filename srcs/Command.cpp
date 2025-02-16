@@ -9,7 +9,6 @@ void Server::setupCmds()
     commandMap_["QUIT"] = std::bind(&Server::cmdQuit, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["TOPIC"] = std::bind(&Server::cmdTopic, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["KICK"] = std::bind(&Server::cmdKick, this, std::placeholders::_1, std::placeholders::_2);
-    commandMap_["PASS"] = std::bind(&Server::cmdPass, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["PING"] = std::bind(&Server::cmdPing, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["PONG"] = std::bind(&Server::cmdPong, this, std::placeholders::_1, std::placeholders::_2);
 }
@@ -42,9 +41,8 @@ void Server::cmdNick(int clientSocket, std::string const& params)
 void Server::cmdUser(int clientSocket, std::string const& params)
 {
     validateParams(clientSocket, params, "USER");
-    Client& client = clients_[clientSocket];
-    client.setUserName(params);
-    if (!client.getNickName().empty() && !client.isLoggedIn())
+    clients_[clientSocket].setUserName(params);
+    if (!clients_[clientSocket].getNickName().empty() && !clients_[clientSocket].isLoggedIn()) 
         welcomeClient(clientSocket);
 }
 
@@ -55,7 +53,7 @@ void Server::cmdJoin(int clientSocket, std::string const& params)
     if (channels_.find(channelName) == channels_.end())
     {
         channels_.emplace(channelName, Channel(channelName)); // Explicitly construct the channel
-        printInfoToServer(INFO, "Channel " + channelName + " created", false);
+        printInfoToServer(INFO, "Channel " + channelName + " created by " + clients_[clientSocket].getNickName(), false);
     }
     Channel& channel = channels_[channelName];
     if (channel.isInviteOnly() && !channel.isInvited(clientSocket))
@@ -69,7 +67,22 @@ void Server::cmdJoin(int clientSocket, std::string const& params)
         return;
     }
     channel.addMember(clientSocket);
-    sendToClient(clientSocket, "JOINED: " + params);
+    // Send JOIN confirmation to the joining client
+    std::string joinMsg = ":" + clients_[clientSocket].getNickName() + "!" + 
+                         clients_[clientSocket].getUserName() + "@" + serverIp_ + 
+                         " JOIN :" + channelName + "\r\n";
+    sendToClient(clientSocket, joinMsg);
+    // Send topic if it exists
+    if (channel.getTopic().empty())
+        sendToClient(clientSocket, RPL_NOTOPIC(serverIp_, clients_[clientSocket].getNickName(), channelName));
+    else
+        sendToClient(clientSocket, RPL_TOPIC(serverIp_, clients_[clientSocket].getNickName(), channelName, channel.getTopic()));
+    for (int memberSocket : channel.getMembers())
+    {
+        if (memberSocket != clientSocket)
+            sendToClient(memberSocket, joinMsg);
+    }
+    
     printInfoToServer(INFO, "Client joined channel " + channelName, false);
 }
 
@@ -84,6 +97,8 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
     }
     std::string recipient = params.substr(0, sp);
     std::string message = params.substr(sp + 1);
+    std::cout << "Recipient: " << recipient << " Message: " << message << std::endl; //debug
+
     if (recipient[1] == '#')
     {
         if (channels_.find(recipient) == channels_.end())
@@ -115,7 +130,6 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
     }
     else
     {
-
         int recipientSocket = findClientByNick(recipient);
         if (recipientSocket == -1)
         {
@@ -132,38 +146,10 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
 void Server::cmdQuit(int clientSocket, std::string const& params)
 {
     (void)params;
-    close(clientSocket);
-    for (size_t i = 0; i < pollFds_.size(); i++)
-    {
-        if (pollFds_[i].fd == clientSocket)
-        {
-            pollFds_.erase(pollFds_.begin() + i);
-            break;
-        }
-    }
+    std::string nickName = clients_[clientSocket].getNickName();
     removeClient(clientSocket);
-}
-
-bool Server::cmdPass(int clientSocket, std::string const& params)
-{
-    std::istringstream iss(params);
-    std::string pass;
-    iss >> pass;
-    if (pass == password_ && !pass.empty())
-    {
-        clients_[clientSocket].setLoggedIn(true);
-        printInfoToServer(INFO, "Authentication successful!", false);
-        sendToClient(clientSocket, "Authentication successful!");
-        return true;
-    }
-    else
-    {
-        printInfoToServer(ERROR, " Incorrect password! Disconnecting!", false);
-        sendToClient(clientSocket, "Incorrect password! Disconnecting!");
-        close(clientSocket);
-        clients_.erase(clientSocket);
-        return false;
-    }
+    printInfoToServer(INFO, "Client on socket " + std::to_string(clientSocket) + 
+                     " with name " + nickName + " has quit", false);
 }
 
 void Server::cmdPing(int clientSocket, std::string const& params)
@@ -198,14 +184,13 @@ void Server::cmdTopic(int clientSocket, std::string const& params)
         return;
     }
     Channel& channel = channels_[channelName];
-    Client& client = clients_[clientSocket];
     if (topic.empty())
     {
         std::string currentTopic = channel.getTopic();
         if (currentTopic.empty())
-            sendToClient(clientSocket, RPL_NOTOPIC(serverIp_, client.getNickName(), channelName));
+            sendToClient(clientSocket, RPL_NOTOPIC(serverIp_, clients_[clientSocket].getNickName(), channelName));
         else
-            sendToClient(clientSocket, RPL_TOPIC(serverIp_, client.getNickName(), channelName, currentTopic));
+            sendToClient(clientSocket, RPL_TOPIC(serverIp_, clients_[clientSocket].getNickName(), channelName, currentTopic));
         return;
     }
     if (channel.isTopicRestricted() && !channel.isOperator(clientSocket))
@@ -214,7 +199,8 @@ void Server::cmdTopic(int clientSocket, std::string const& params)
         return;
     }
     channel.setTopic(topic);
-    sendToClient(clientSocket, RPL_TOPIC(serverIp_, client.getNickName(), channelName, topic));
+    sendToClient(clientSocket, RPL_TOPIC(serverIp_, clients_[clientSocket].getNickName(), channelName, topic));
+
     printInfoToServer(INFO, "Topic for channel " + channelName + " changed to: " + topic, false);
 }
 
@@ -227,47 +213,29 @@ void Server::cmdKick(int clientSocket, std::string const& params)
     std::getline(iss, reason); // Remaining part is the reason
     reason.erase(0, reason.find_first_not_of(' ')); // Trim leading spaces
     
-
     if (channels_.find(channelName) == channels_.end())
     {
         sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, channelName));
         return;
     }
     Channel& channel = channels_[channelName];
-    Client& client = clients_[clientSocket];
-    // Ensure the client is an operator of the channel
     if (!channel.isOperator(clientSocket))
     {
         sendToClient(clientSocket, ERR_CHANOPRIVSNEEDED(serverIp_, channelName));
         return;
     }
-    // Find the target client
-    int targetSocket = -1;
-    for (const auto& pair : clients_)
-    {
-        if (pair.second.getNickName() == targetNick)
-        {
-            targetSocket = pair.first;
-            break;
-        }
-    }
-    if (targetSocket == -1)
+    int targetSocket = findClientByNick(targetNick);
+    if (targetSocket == -1 || !channel.isMember(targetSocket))
     {
         sendToClient(clientSocket, ERR_NOSUCHNICK(serverIp_, targetNick));
         return;
     }
-    // Ensure the target is in the channel
-    if (!channel.isMember(targetSocket))
-    {
-        sendToClient(clientSocket, ERR_USERNOTINCHANNEL(serverIp_, targetNick, channelName));
-        return;
-    }
-    // Kick the user from the channel
     channel.removeClient(targetSocket);
     removeClient(targetSocket);
-    sendToClient(targetSocket, "You have been kicked from " + channelName + " by " + client.getNickName() + " :" + reason);
+
+    sendToClient(targetSocket, "You have been kicked from " + channelName + " by " + clients_[clientSocket].getNickName() + " :" + reason);
     sendToClient(clientSocket, "You have kicked " + targetNick + " from " + channelName);
-    printInfoToServer(INFO, client.getNickName() + " kicked " + targetNick + " from " + channelName, false);
+    printInfoToServer(INFO, clients_[clientSocket].getNickName() + " kicked " + targetNick + " from " + channelName, false);
 }
 
 void Server::cmdInvite(int clientSocket, std::string const& params)
@@ -276,45 +244,40 @@ void Server::cmdInvite(int clientSocket, std::string const& params)
     std::istringstream iss(params);
     std::string targetNick, channelName;
     iss >> targetNick >> channelName;
+
     if (channels_.find(channelName) == channels_.end())
     {
         sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, channelName));
         return;
     }
     Channel& channel = channels_[channelName];
-    Client& client = clients_[clientSocket];
-    if (!channel.isClientInChannel(clientSocket))
+    if (!channel.isMember(clientSocket))
     {
         sendToClient(clientSocket, ERR_NOTONCHANNEL(serverIp_, channelName));
         return;
     }
-    int targetSocket = -1;
-    for (const auto& pair : clients_)
-    {
-        if (pair.second.getNickName() == targetNick)
-        {
-            targetSocket = pair.first;
-            break;
-        }
-    }
+    int targetSocket = findClientByNick(targetNick);
     if (targetSocket == -1)
     {
         sendToClient(clientSocket, ERR_NOSUCHNICK(serverIp_, targetNick));
         return;
     }
-    sendToClient(targetSocket, RPL_INVITE(serverIp_, client.getNickName(), targetNick, channelName));
+    channel.addInvite(targetSocket);
+    sendToClient(targetSocket, RPL_INVITE(serverIp_, clients_[clientSocket].getNickName(), targetNick, channelName));
     sendToClient(clientSocket, "You have invited " + targetNick + " to " + channelName);
-    printInfoToServer(INFO, client.getNickName() + " invited " + targetNick + " to " + channelName, false);
+
+    printInfoToServer(INFO, clients_[clientSocket].getNickName() + " invited " + targetNick + " to " + channelName, false);
 }
 
 void Server::cmdMode(int clientSocket, std::string const& params)
 {
     validateParams(clientSocket, params, "MODE");
     std::istringstream iss(params);
-    std::string target, mode;
-    iss >> target >> mode;
+    std::string target, mode, modeParams;
+    iss >> target >> mode >> modeParams;
 
-    // Check if the target is a channel
+    modeParams.erase(0, modeParams.find_first_not_of(' '));
+
     if (channels_.find(target) != channels_.end())
     {
         Channel& channel = channels_[target];
@@ -323,22 +286,103 @@ void Server::cmdMode(int clientSocket, std::string const& params)
             sendToClient(clientSocket, ERR_NOTONCHANNEL(serverIp_, target));
             return;
         }
-
         if (!channel.isOperator(clientSocket))
         {
             sendToClient(clientSocket, ERR_CHANOPRIVSNEEDED(serverIp_, target));
             return;
         }
-        // Handle invite-only mode (+i/-i)
-        if (mode == "+i")
+        // Handle channel modes
+        if (mode == "+i") // Set invite-only
         {
             channel.setInviteOnly(true);
             sendToClient(clientSocket, RPL_MODE(serverIp_, target, "+i", ""));
         }
-        else if (mode == "-i")
+        else if (mode == "-i") 
         {
             channel.setInviteOnly(false);
             sendToClient(clientSocket, RPL_MODE(serverIp_, target, "-i", ""));
+        }
+        else if (mode == "+t") // Restrict topic changes to operators
+        {
+            channel.topicRestricted(true);
+            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "+t", ""));
+        }
+        else if (mode == "-t") 
+        {
+            channel.topicRestricted(false);
+            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "-t", ""));
+        }
+        else if (mode == "+k") // Set channel key (password)
+        {
+            if (modeParams.empty())
+            {
+                sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
+                return;
+            }
+            channel.setPassword(modeParams);
+            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "+k", modeParams));
+        }
+        else if (mode == "-k") // Remove channel key
+        {
+            channel.setPassword(""); // Clear the password
+            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "-k", ""));
+        }
+        else if (mode == "+o") // Grant operator status
+        {
+            if (modeParams.empty())
+            {
+                sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
+                return;
+            }
+            int targetSocket = findClientByNick(modeParams);
+            if (targetSocket == -1)
+            {
+                sendToClient(clientSocket, ERR_NOSUCHNICK(serverIp_, modeParams));
+                return;
+            }
+            channel.addOperator(targetSocket);
+            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "+o", modeParams));
+        }
+        else if (mode == "-o") // Remove operator status
+        {
+            if (modeParams.empty())
+            {
+                sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
+                return;
+            }
+
+            int targetSocket = findClientByNick(modeParams);
+            if (targetSocket == -1)
+            {
+                sendToClient(clientSocket, ERR_NOSUCHNICK(serverIp_, modeParams));
+                return;
+            }
+
+            channel.removeOperator(targetSocket);
+            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "-o", modeParams));
+        }
+        else if (mode == "+l") // Set user limit
+        {
+            try
+            {
+                int limit = std::stoi(modeParams);
+                if (limit <= 0)
+                {
+                    sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
+                    return;
+                }
+                channel.setUserLimit(limit);
+                sendToClient(clientSocket, RPL_MODE(serverIp_, target, "+l", std::to_string(limit)));
+            }
+            catch (std::exception& e)
+            {
+                sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
+            }
+        }
+        else if (mode == "-l") // Remove user limit
+        {
+            channel.setUserLimit(0);
+            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "-l", ""));
         }
         else
         {

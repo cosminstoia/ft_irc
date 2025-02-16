@@ -66,7 +66,6 @@ class Server
         void        cmdUser(int clientSocket, std::string const& params);
         void        cmdPrivmsg(int clientSocket, std::string const& params);
         void        cmdQuit(int clientSocket, std::string const& params);
-        bool        cmdPass(int clientSocket, std::string const& params);
         void        cmdPing(int clientSocket, std::string const& params);
         void        cmdPong(int clientSocket, std::string const& params);
         void        cmdTopic(int clientSocket, std::string const& params);

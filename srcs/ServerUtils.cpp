@@ -21,6 +21,9 @@ void Server::removeClient(int clientSocket)
     if (it != clients_.end()) 
     {
         Client& client = it->second;
+        printInfoToServer(DISCONNECTION, "Client with nick: " + client.getNickName() + 
+                         " on socket " + std::to_string(clientSocket), false);
+        
         close(clientSocket);
         for (size_t i = 0; i < pollFds_.size(); i++) 
         {
@@ -31,7 +34,6 @@ void Server::removeClient(int clientSocket)
             }
         }
         clients_.erase(it);
-        printInfoToServer(DISCONNECTION, "Client disconnected: " + client.getNickName(), false);
     }
 }
 
@@ -68,22 +70,17 @@ void Server::welcomeClient(int clientSocket)
 {
     Client& client = clients_[clientSocket];
     std::string nick = client.getNickName();
-    if (nick.empty())
-    {
-        sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, nick));
-        return;
-    }
     for (auto& pair : clients_)
     {
         if (pair.second.getNickName() == nick && pair.first != clientSocket)
         {
             sendToClient(clientSocket, ERR_NICKNAMEINUSE(serverIp_, nick));
             printInfoToServer(WARNING, "User already connected", false);
-            client.setLoggedIn(true);
             return;
         }
     }
     sendToClient(clientSocket, RPL_WELCOME(serverIp_, nick));
+    sendToClient(clientSocket, "Authentication successful!");
 }
 
 void Server::pingClients()
@@ -108,7 +105,7 @@ void Server::pingClients()
     }
     for (int socket : timeoutClients)
     {
-        printInfoToServer(INFO, "Client on socket " + std::to_string(socket) + " timed out", false); // debug now
+        printInfoToServer(INFO, "Client on socket " + std::to_string(socket) + " timed out", false);
         removeClient(socket);
     }
 }

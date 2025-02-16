@@ -75,15 +75,21 @@ bool Server::parseInput(Client& client, const std::string& message)
                     !client.getUserName().empty() && 
                     !client.getPassword().empty())
                 {
-                    welcomeClient(client.getSocket());
                     client.setLoggedIn(true);
+                    welcomeClient(client.getSocket());
                     return false;
                 }
             }
             return true;
         }
         // Reject other commands until registered
-        sendToClient(client.getSocket(), ERR_NOTREGISTERED(serverIp_));
+        sendToClient(client.getSocket(), ERR_NOTREGISTERED(serverIp_)); // this eon print in server why?
+        return false;
+    }
+    // reject pass after login
+    if (command == "PASS")
+    {
+        sendToClient(client.getSocket(), "You are already logged in!");
         return false;
     }
     auto it = commandMap_.find(command);
@@ -92,7 +98,7 @@ bool Server::parseInput(Client& client, const std::string& message)
         it->second(client.getSocket(), parameters);
         return true;
     }
-    sendToClient(client.getSocket(), ERR_UNKNOWNCOMMAND(serverIp_, command));
+    sendToClient(client.getSocket(), ERR_UNKNOWNCOMMAND(serverIp_, command)); // dont think this work
     return false;
 }
 
@@ -100,30 +106,54 @@ bool Server::parseInitialInput(Client& client, const std::string command, std::s
 {
     if (command == "PASS") 
     {
-        if (parameters == getSPass() && !getSPass().empty()) 
-        client.setPassword(parameters);
-        else 
+        if (parameters.empty())
+        {
+            sendToClient(client.getSocket(), ERR_NEEDMOREPARAMS(serverIp_, "PASS"));
+            return false;
+        }
+        if (parameters == password_)
+        {
+            client.setPassword(parameters);
+            printInfoToServer(INFO, "Authentication successful!", false);
+            return true;
+        }
+        else
         {
             sendToClient(client.getSocket(), ERR_PASSWDMISMATCH(serverIp_));
+            printInfoToServer(INFO, "Client introduced wrong password.", false);
+            usleep(100000); // 100ms for message to be sent
+            clients_.erase(client.getSocket());
+            close(client.getSocket());
             return false;
         }
     }
     else if (command == "NICK")
     {
-        if (client.getNickName() != parameters) 
-        client.setNickName(parameters);
-        else
+        if (parameters.empty())
         {
-            sendToClient(client.getSocket(), ERR_NICKNAMEINUSE(serverIp_, parameters));
-            return false;;
+            sendToClient(client.getSocket(), ERR_NEEDMOREPARAMS(serverIp_, "NICK"));
+            return false;
         }
+        for (const auto& pair : clients_)
+        {
+            if (pair.second.getNickName() == parameters)
+            {
+                sendToClient(client.getSocket(), ERR_NICKNAMEINUSE(serverIp_, parameters));
+                return false;
+            }
+        }
+        client.setNickName(parameters);
+        return true;
     }
     else if (command == "USER")
     {
-        if (client.getUserName() != parameters) 
+        if (parameters.empty())
+        {
+            sendToClient(client.getSocket(), ERR_NEEDMOREPARAMS(serverIp_, "USER"));
+            return false;
+        }
         client.setUserName(parameters);
-        else
-        return false;;
+        return true;
     }
-    return true;
+    return false;
 }
