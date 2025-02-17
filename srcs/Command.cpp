@@ -76,13 +76,10 @@ void Server::cmdJoin(int clientSocket, std::string const& params)
     else
         sendToClient(clientSocket, RPL_TOPIC(serverIp_, clients_[clientSocket].getNickName(), channelName, channel.getTopic()));
 
-    std::string joinMsg = ":" + clients_[clientSocket].getNickName() + "!" +
-                          clients_[clientSocket].getUserName() + "@" + serverIp_ +
-                          " JOIN :" + channelName + "\r\n";
+    std::string joinMsg = RPL_JOIN(serverIp_, clients_[clientSocket].getNickName(), channelName);
     for (int memberSocket : channel.getMembers())
     {
-        if (memberSocket != clientSocket)
-            sendToClient(memberSocket, joinMsg);
+        sendToClient(memberSocket, joinMsg);
     }
     sendToClient(clientSocket, joinMsg);
     printInfoToServer(CHANNEL, "Client " + clients_[clientSocket].getNickName() + " joined channel " + channelName, false);
@@ -100,10 +97,10 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
         sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "PRIVMSG"));
         return;
     }
-    std::string recipient = params.substr(0, sp);
-    std::string message = params.substr(sp + 1);
-    std::cout << "Recipient: " << recipient << std::endl;
-    if (recipient[1] == '#')
+    std::string recipient = params.substr(0, sp); // "#chanel" or "user"
+    std::string message = params.substr(sp + 1); // ":message"
+
+    if (recipient[0] == '#')
     {
         if (channels_.find(recipient) == channels_.end())
         {
@@ -117,31 +114,35 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
             sendToClient(clientSocket, ERR_CANNOTSENDTOCHAN(serverIp_, recipient));
             return;
         }
-        std::string senderNick = clients_[clientSocket].getNickName();
-        std::string privmsg = ":" + senderNick + " PRIVMSG " + recipient + " :" + message + "\r\n";
-        for (int memberSocket : channel.getMembers())
+        if (!message.empty() && message[1] == '!')
         {
-            if (memberSocket != clientSocket)
-                sendToClient(memberSocket, privmsg);
+            printInfoToServer(INFO, "BOT called by " + clients_[clientSocket].getNickName(), false);
+            bot_->executeCommand(*this, clientSocket, recipient, message.substr(1));
         }
-        //log
-        std::ostringstream oss;
-        oss << "Message sent on channel [" << recipient << "] Users in channel: [";
-        bool first = true;
-        for (int memberSocket : channel.getMembers())
+        else
         {
-            if (!first)
-                oss << ", ";
-            oss << clients_[memberSocket].getNickName();
-            first = false;
+            //remove channel message
+            std::string privmsg = RPL_PRIVMSG(serverIp_, clients_[clientSocket].getNickName(), recipient, message);
+
+            for (int memberSocket : channel.getMembers())
+            {
+                if (memberSocket != clientSocket)
+                    sendToClient(memberSocket, privmsg);
+            }
+
+            // Log the action
+            std::ostringstream oss;
+            oss << "Message sent on channel [" << recipient << "] Users in channel: [";
+            bool first = true;
+            for (int memberSocket : channel.getMembers())
+            {
+                if (!first) oss << ", ";
+                oss << clients_[memberSocket].getNickName();
+                first = false;
+            }
+            oss << "]";
+            printInfoToServer(CHANNEL, oss.str(), false);
         }
-        oss << "]";
-        printInfoToServer(CHANNEL, oss.str(), false);
-    }
-    else if (!message.empty() && message[1] == '!')
-    {
-        printInfoToServer(INFO, "BOT called by " + clients_[clientSocket].getNickName(), false);
-        bot_->executeCommand(*this, clientSocket, recipient, message.substr(1));
     }
     else
     {
@@ -149,6 +150,7 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
         if (recipientSocket == -1)
         {
             sendToClient(clientSocket, ERR_NOSUCHNICK(serverIp_, recipient));
+            //if its not a channel and not a user or not bot then we can asuem its to a
             return;
         }
         std::string senderNick = clients_[clientSocket].getNickName();
@@ -162,13 +164,15 @@ void Server::cmdQuit(int clientSocket, std::string const& params)
 {
     (void)params;
     std::string nickName = clients_[clientSocket].getNickName();
+    std::string userName = clients_[clientSocket].getUserName();
+    std::string host = clients_[clientSocket].getIpAddr();
     // Notify other clients in channels
     for (auto & pair : channels_)
     {
         Channel & channel = pair.second;
         if (channel.isMember(clientSocket))
         {
-            std::string quitMsg = ":" + nickName + " QUIT :Client Quit\r\n";
+            std::string quitMsg = RPL_QUIT(nickName, userName, host);
             for (int memberSocket : channel.getMembers())
             {
                 if (memberSocket != clientSocket)
@@ -430,7 +434,7 @@ void Server::cmdMode(int clientSocket, std::string const& params)
         sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, target));
     }
 }
-
+// the problme is from first 2 inital pasrign adn error mesage in loop
 void Server::cmdPart(int clientSocket, std::string const& params)
 {
     validateParams(clientSocket, params, "PART");
@@ -450,14 +454,14 @@ void Server::cmdPart(int clientSocket, std::string const& params)
     clients_[clientSocket].leaveChannel(channelName);
     // Notify other members
     std::string partMsg = ":" + clients_[clientSocket].getNickName() + "!" +
-                          clients_[clientSocket].getUserName() + "@" + serverIp_ +
+                          clients_[clientSocket].getUserName() + "@" + clients_[clientSocket].getIpAddr() +
                           " PART " + channelName + "\r\n";
+    std::cout << "this shudl be the user:" << clients_[clientSocket].getUserName() << std::endl;
+    std::cout << partMsg << std::endl;
     for (int memberSocket : channel.getMembers())
     {
-        if (memberSocket != clientSocket)
-            sendToClient(memberSocket, partMsg);
+        sendToClient(memberSocket, partMsg);
     }
     printInfoToServer(INFO, "Client " + clients_[clientSocket].getNickName() +
                       " has left channel " + channelName, false);
 }
-

@@ -9,24 +9,32 @@ static void parseMessage(const std::string& message, std::string& command, std::
 
     command.clear();
     parameters.clear();
-    while (pos < end && (message[pos] == ' ' || message[pos] == '\t'))
+
+    if (message.empty()) // skip empty messages
+        return;
+    while (pos < end && (message[pos] == ' ' || message[pos] == '\t')) //skip leading spaces
         ++pos;
-    if (pos < end && message[pos] == ':') 
+
+    // handle prefix wiht : 
+    if (pos < end && message[pos] == ':')
     {
         ++pos;
         size_t prefixEnd = message.find(' ', pos);
         if (prefixEnd == std::string::npos)
-            throw std::runtime_error("Error: Invalid message format (missing command).");
+            return; // ignore incomplete messages
         pos = prefixEnd + 1;
     }
-    while (pos < end && (message[pos] == ' ' || message[pos] == '\t'))
+    while (pos < end && (message[pos] == ' ' || message[pos] == '\t')) // skip spaces after prefix
         ++pos;
 
+    // parse command
     size_t commandEnd = message.find(' ', pos);
     if (commandEnd == std::string::npos)
         commandEnd = end;
     command = message.substr(pos, commandEnd - pos);
     std::transform(command.begin(), command.end(), command.begin(), ::toupper);
+
+    // skip spaces after command
     pos = commandEnd;
     while (pos < end && (message[pos] == ' ' || message[pos] == '\t'))
         ++pos;
@@ -77,7 +85,6 @@ bool Server::parseInput(Client& client, const std::string& message)
                     !client.getUserName().empty() && 
                     !client.getPassword().empty())
                 {
-                    client.setLoggedIn(true);
                     welcomeClient(client.getSocket());
                     return false;
                 }

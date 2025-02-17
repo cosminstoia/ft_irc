@@ -12,12 +12,12 @@ void Server::connectClient(int clientSocket)
 		std::string buffer = client.getBuffer();
         client.setBuffer(buffer.erase(0, pos + 2));
         // std::cout << "[DEBUG] Parsed message: " << message << std::endl;
-		if(!parseInput(client, message))
+        if(!parseInput(client, message)) 
         {
             printInfoToServer(ERROR, "Error parsing message: " + message, false);
             return;
         }
-	}
+    }
 }
 
 void Server::removeClient(int clientSocket) 
@@ -26,9 +26,17 @@ void Server::removeClient(int clientSocket)
     if (it != clients_.end()) 
     {
         Client& client = it->second;
+        for (auto& channel : channels_)
+        {
+            if (channel.second.isMember(clientSocket))
+            {
+                channel.second.removeMember(clientSocket);
+                if (channel.second.getMembers().empty())
+                    channels_.erase(channel.first);
+            }
+        }
         printInfoToServer(DISCONNECTION, "Client with nick: " + client.getNickName() + 
-                         " on socket " + std::to_string(clientSocket), false);
-        
+                        " on socket " + std::to_string(clientSocket), false);
         close(clientSocket);
         for (size_t i = 0; i < pollFds_.size(); i++) 
         {

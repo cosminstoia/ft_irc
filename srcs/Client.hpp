@@ -51,6 +51,7 @@ class Client
         const int& getBytes() const { return bytes_; }
         void joinChannel(const std::string& channel) { joinedChannels_.insert(channel); }
         void leaveChannel(const std::string& channel) { joinedChannels_.erase(channel); }
+        const std::string& getIpAddr() const { return ipAddress_; }
         
         // ping pong mechanism
         void updatePongReceived() { lastPong_ = std::chrono::system_clock::now(); awaitingPong_ = false; }

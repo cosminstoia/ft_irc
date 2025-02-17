@@ -31,6 +31,12 @@
 #define RPL_INVITE(server, nick, target, channel) (":" + std::string(server) + " 341 " + nick + " " + target + " " + channel + "\r\n")
 #define RPL_MODE(server, channel, mode, params) (":" + std::string(server) + " 324 " + channel + " " + mode + " " + params + "\r\n")
 
+
+#define RPL_PART(nick, user, host, channel) (":" + nick + "!" + user + "@" + host + " PART " + channel + " :has left the channel\r\n")
+#define RPL_JOIN(server, nick, channel) (":" + nick + "!" + nick + "@" + std::string(server) + " JOIN :" + channel + "\r\n")
+#define RPL_PRIVMSG(server, nick, recipient, message) (":" + nick + "!" + nick + "@" + std::string(server) + " PRIVMSG " + recipient + " :" + message + "\r\n")
+#define RPL_QUIT(nick, user, host) (":" + nick + "!" + user + "@" + host + " QUIT :Client Quit\r\n")
+
 // ERROR MESSAGES
 #define ERR_NOSUCHNICK(server, nick) (":" + std::string(server) + " 401 " + nick + " :No such nick/channel\r\n")
 #define ERR_NOSUCHCHANNEL(server, channel) (":" + std::string(server) + " 403 " + channel + " :No such channel\r\n")
@@ -47,3 +53,4 @@
 #define ERR_INVITEONLYCHAN(server, channel) (":" + std::string(server) + " 473 * " + channel + " :Cannot join channel (+i)\r\n")
 #define ERR_CHANNELISFULL(server, channel) (":" + std::string(server) + " 471 * " + channel + " :Cannot join channel (+l)\r\n")
 #define ERR_USERNOTINCHANNEL(server, nick, channel) (":" + std::string(server) + " 441 * " + nick + " " + channel + " :They aren't on that channel\r\n")
+
