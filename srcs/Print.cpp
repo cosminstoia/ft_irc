@@ -16,10 +16,11 @@ void printInfoToServer(messageType type, std::string const& msg, bool exitP)
         case WARNING:   typeStr = "WARNING";    color = YELLOW; break;
         case CONNECTION:typeStr = "CONNECTION"; color = GREEN;  break;
         case DISCONNECTION: typeStr = "DISCONNECTION"; color = RED; break;
-        case BOT:  typeStr = "BOT";   color = GRAY;   break;
         case ERROR:  typeStr = "ERROR";   color = RED;   break;
         case PING: typeStr = "PING";  color = CYAN;   break;
         case PONG: typeStr = "PONG";  color = CYAN;   break;
+        case CHANNEL: typeStr = "CHANNEL"; color = MAGENTA; break;
+        case PRIVMSG: typeStr = "CLIENT"; color = LIGHT_MAGENTA; break;
         default:        typeStr = "UNKNOWN";    color = RESET; break;
     }
 

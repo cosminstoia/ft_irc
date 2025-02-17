@@ -6,6 +6,8 @@
 #define BLUE "\033[34m"
 #define GRAY "\033[90m"
 #define CYAN "\033[36m" 
+#define MAGENTA "\033[35m"
+#define LIGHT_MAGENTA "\033[35;1m"
 
 // server macros
 #define MAX_CHARS 1024

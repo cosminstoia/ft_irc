@@ -3,6 +3,7 @@
 
 static void parseMessage(const std::string& message, std::string& command, std::string& parameters)
 {
+    // std::cout << "[DEBUG] Raw Message: " << message << std::endl;
     size_t pos = 0;
     size_t end = message.size();
 
@@ -31,6 +32,7 @@ static void parseMessage(const std::string& message, std::string& command, std::
         ++pos;
     if (pos < end) 
         parameters = message.substr(pos);
+    // std::cout << "[DEBUG] Parsed command: [" << command << "], Parameters: [" << parameters << "]" << std::endl;
 }
 
 bool Server::parseInput(Client& client, const std::string& message) 
@@ -46,7 +48,7 @@ bool Server::parseInput(Client& client, const std::string& message)
             sendToClient(client.getSocket(), "CAP * LS :\r\n");
             return true;
         }
-        if (parameters == "END") 
+        else if (parameters == "END") 
         {
             return true;
         }
@@ -83,7 +85,7 @@ bool Server::parseInput(Client& client, const std::string& message)
             return true;
         }
         // Reject other commands until registered
-        sendToClient(client.getSocket(), ERR_NOTREGISTERED(serverIp_)); // this eon print in server why?
+        sendToClient(client.getSocket(), ERR_NOTREGISTERED(serverIp_));
         return false;
     }
     // reject pass after login
@@ -98,7 +100,6 @@ bool Server::parseInput(Client& client, const std::string& message)
         it->second(client.getSocket(), parameters);
         return true;
     }
-    sendToClient(client.getSocket(), ERR_UNKNOWNCOMMAND(serverIp_, command)); // dont think this work
     return false;
 }
 
@@ -111,7 +112,7 @@ bool Server::parseInitialInput(Client& client, const std::string command, std::s
             sendToClient(client.getSocket(), ERR_NEEDMOREPARAMS(serverIp_, "PASS"));
             return false;
         }
-        if (parameters == password_)
+        else if (parameters == password_)
         {
             client.setPassword(parameters);
             printInfoToServer(INFO, "Authentication successful!", false);

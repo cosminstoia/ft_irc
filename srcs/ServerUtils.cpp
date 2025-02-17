@@ -5,13 +5,18 @@ void Server::connectClient(int clientSocket)
 {
     Client& client = clients_[clientSocket];
     size_t pos = 0;
+    // std::cout << "[DEBUG] Client buffer: " << client.getBuffer() << std::endl;
 	while ((pos = client.getBuffer().find("\r\n")) != std::string::npos) 
     {
 		std::string message = client.getBuffer().substr(0, pos);
 		std::string buffer = client.getBuffer();
         client.setBuffer(buffer.erase(0, pos + 2));
+        // std::cout << "[DEBUG] Parsed message: " << message << std::endl;
 		if(!parseInput(client, message))
+        {
+            printInfoToServer(ERROR, "Error parsing message: " + message, false);
             return;
+        }
 	}
 }
 
@@ -75,10 +80,12 @@ void Server::welcomeClient(int clientSocket)
         if (pair.second.getNickName() == nick && pair.first != clientSocket)
         {
             sendToClient(clientSocket, ERR_NICKNAMEINUSE(serverIp_, nick));
-            printInfoToServer(WARNING, "User already connected", false);
+            printInfoToServer(WARNING, "Username " RED + nick + RESET + " is already used!" , false);
+            removeClient(clientSocket);
             return;
         }
     }
+    client.setLoggedIn(true);
     sendToClient(clientSocket, RPL_WELCOME(serverIp_, nick));
     sendToClient(clientSocket, "Authentication successful!");
 }

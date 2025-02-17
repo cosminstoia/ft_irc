@@ -30,10 +30,11 @@ enum messageType
     CLIENT,
     SERVER,
     SUCCESS,
-    BOT,
     ERROR,
     PING,
     PONG,
+    CHANNEL,
+    PRIVMSG
 };
 
 class Bot;
@@ -72,7 +73,9 @@ class Server
         void        cmdKick(int clientSocket, std::string const& params);
         void        cmdInvite(int clientSocket, std::string const& params);
         void        cmdMode(int clientSocket, std::string const& params);
+        void        cmdPart(int clientSocket, std::string const& params);
         void        validateParams(int clientSocket, const std::string& params, const std::string& command);
+        
 
         // Utils commands
         void        connectClient(int clientSocket);

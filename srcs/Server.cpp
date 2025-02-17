@@ -118,7 +118,7 @@ void Server::handleClient(Client& client)
     {
         if (bytesRead < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
         {
-            std::cout << "No data to read.. revc faile.. why are we here ?" << std::endl;
+            std::cout << "Recv failed! and errno is EAGAIN or EWOULDBLOCK" << std::endl;
             return; 
         }
         removeClient(client.getSocket());

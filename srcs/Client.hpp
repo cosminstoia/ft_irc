@@ -50,6 +50,7 @@ class Client
         const int& getSocket() const { return socket_; }
         const int& getBytes() const { return bytes_; }
         void joinChannel(const std::string& channel) { joinedChannels_.insert(channel); }
+        void leaveChannel(const std::string& channel) { joinedChannels_.erase(channel); }
         
         // ping pong mechanism
         void updatePongReceived() { lastPong_ = std::chrono::system_clock::now(); awaitingPong_ = false; }

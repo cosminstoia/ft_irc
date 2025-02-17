@@ -12,6 +12,8 @@ void Server::setupCmds()
     commandMap_["PING"] = std::bind(&Server::cmdPing, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["PONG"] = std::bind(&Server::cmdPong, this, std::placeholders::_1, std::placeholders::_2);
     commandMap_["MODE"] = std::bind(&Server::cmdMode, this, std::placeholders::_1, std::placeholders::_2);
+    commandMap_["INVITE"] = std::bind(&Server::cmdInvite, this, std::placeholders::_1, std::placeholders::_2);
+    commandMap_["PART"] = std::bind(&Server::cmdPart, this, std::placeholders::_1, std::placeholders::_2);
 }
 
 void Server::validateParams(int clientSocket, const std::string& params, const std::string& command)
@@ -68,36 +70,39 @@ void Server::cmdJoin(int clientSocket, std::string const& params)
         return;
     }
     channel.addMember(clientSocket);
-    // Send JOIN confirmation to the joining client
-    std::string joinMsg = ":" + clients_[clientSocket].getNickName() + "!" + 
-                         clients_[clientSocket].getUserName() + "@" + serverIp_ + 
-                         " JOIN :" + channelName + "\r\n";
-    sendToClient(clientSocket, joinMsg);
     // Send topic if it exists
     if (channel.getTopic().empty())
         sendToClient(clientSocket, RPL_NOTOPIC(serverIp_, clients_[clientSocket].getNickName(), channelName));
     else
         sendToClient(clientSocket, RPL_TOPIC(serverIp_, clients_[clientSocket].getNickName(), channelName, channel.getTopic()));
+
+    std::string joinMsg = ":" + clients_[clientSocket].getNickName() + "!" +
+                          clients_[clientSocket].getUserName() + "@" + serverIp_ +
+                          " JOIN :" + channelName + "\r\n";
     for (int memberSocket : channel.getMembers())
     {
         if (memberSocket != clientSocket)
             sendToClient(memberSocket, joinMsg);
     }
-    
-    printInfoToServer(INFO, "Client joined channel " + channelName, false);
+    sendToClient(clientSocket, joinMsg);
+    printInfoToServer(CHANNEL, "Client " + clients_[clientSocket].getNickName() + " joined channel " + channelName, false);
 }
 
 void Server::cmdPrivmsg(int clientSocket, std::string const& params)
 {
+    //debug print
+    // std::cout << "cmdPrivmsg: " << params << std::endl;
+    
     validateParams(clientSocket, params, "PRIVMSG");
     size_t sp = params.find(' ');
-    if (sp == std::string::npos)
+    if (sp == std::string::npos || sp == 0)
     {
         sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "PRIVMSG"));
         return;
     }
     std::string recipient = params.substr(0, sp);
     std::string message = params.substr(sp + 1);
+    std::cout << "Recipient: " << recipient << std::endl;
     if (recipient[1] == '#')
     {
         if (channels_.find(recipient) == channels_.end())
@@ -112,7 +117,6 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
             sendToClient(clientSocket, ERR_CANNOTSENDTOCHAN(serverIp_, recipient));
             return;
         }
-        // Broadcast the message to all members of the channel except the sender
         std::string senderNick = clients_[clientSocket].getNickName();
         std::string privmsg = ":" + senderNick + " PRIVMSG " + recipient + " :" + message + "\r\n";
         for (int memberSocket : channel.getMembers())
@@ -120,11 +124,23 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
             if (memberSocket != clientSocket)
                 sendToClient(memberSocket, privmsg);
         }
-        printInfoToServer(INFO, "PRIVMSG sent to " + recipient + ": " + message, false);
+        //log
+        std::ostringstream oss;
+        oss << "Message sent on channel [" << recipient << "] Users in channel: [";
+        bool first = true;
+        for (int memberSocket : channel.getMembers())
+        {
+            if (!first)
+                oss << ", ";
+            oss << clients_[memberSocket].getNickName();
+            first = false;
+        }
+        oss << "]";
+        printInfoToServer(CHANNEL, oss.str(), false);
     }
     else if (!message.empty() && message[1] == '!')
     {
-        printInfoToServer(INFO, "PRIVMSG sent to " + recipient + ": " + message, false);
+        printInfoToServer(INFO, "BOT called by " + clients_[clientSocket].getNickName(), false);
         bot_->executeCommand(*this, clientSocket, recipient, message.substr(1));
     }
     else
@@ -138,7 +154,7 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
         std::string senderNick = clients_[clientSocket].getNickName();
         std::string privmsg = ":" + senderNick + " PRIVMSG " + recipient + " :" + message + "\r\n";
         sendToClient(recipientSocket, privmsg);
-        printInfoToServer(INFO, "PRIVMSG sent to " + recipient + ": " + message, false);
+        printInfoToServer(PRIVMSG, "PRIVMSG sent to " + recipient + " from " + senderNick, false);
     }
 }
 
@@ -146,9 +162,22 @@ void Server::cmdQuit(int clientSocket, std::string const& params)
 {
     (void)params;
     std::string nickName = clients_[clientSocket].getNickName();
+    // Notify other clients in channels
+    for (auto & pair : channels_)
+    {
+        Channel & channel = pair.second;
+        if (channel.isMember(clientSocket))
+        {
+            std::string quitMsg = ":" + nickName + " QUIT :Client Quit\r\n";
+            for (int memberSocket : channel.getMembers())
+            {
+                if (memberSocket != clientSocket)
+                    sendToClient(memberSocket, quitMsg);
+            }
+            channel.removeClient(clientSocket);
+        }
+    }
     removeClient(clientSocket);
-    printInfoToServer(INFO, "Client on socket " + std::to_string(clientSocket) + 
-                     " with name " + nickName + " has quit", false);
 }
 
 void Server::cmdPing(int clientSocket, std::string const& params)
@@ -164,7 +193,7 @@ void Server::cmdPong(int clientSocket, std::string const& params)
     for (const auto& pair : channels_) 
     {
         const std::string& key = pair.first;
-        std::cout << "Key: " << key << std::endl;
+        // std::cout << "Key: " << key << std::endl;
         lastKey = key;
     }
     bot_->botPeriodicBroadcast(*this, clientSocket, lastKey);
@@ -401,3 +430,34 @@ void Server::cmdMode(int clientSocket, std::string const& params)
         sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, target));
     }
 }
+
+void Server::cmdPart(int clientSocket, std::string const& params)
+{
+    validateParams(clientSocket, params, "PART");
+    std::string channelName = params;
+    if (channels_.find(channelName) == channels_.end())
+    {
+        sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, channelName));
+        return;
+    }
+    Channel& channel = channels_[channelName];
+    if (!channel.isMember(clientSocket))
+    {
+        sendToClient(clientSocket, ERR_NOTONCHANNEL(serverIp_, channelName));
+        return;
+    }
+    channel.removeMember(clientSocket);
+    clients_[clientSocket].leaveChannel(channelName);
+    // Notify other members
+    std::string partMsg = ":" + clients_[clientSocket].getNickName() + "!" +
+                          clients_[clientSocket].getUserName() + "@" + serverIp_ +
+                          " PART " + channelName + "\r\n";
+    for (int memberSocket : channel.getMembers())
+    {
+        if (memberSocket != clientSocket)
+            sendToClient(memberSocket, partMsg);
+    }
+    printInfoToServer(INFO, "Client " + clients_[clientSocket].getNickName() +
+                      " has left channel " + channelName, false);
+}
+
