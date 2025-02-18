@@ -3,7 +3,6 @@
 
 static void parseMessage(const std::string& message, std::string& command, std::string& parameters)
 {
-    // std::cout << "[DEBUG] Raw Message: " << message << std::endl;
     size_t pos = 0;
     size_t end = message.size();
 
@@ -40,7 +39,6 @@ static void parseMessage(const std::string& message, std::string& command, std::
         ++pos;
     if (pos < end) 
         parameters = message.substr(pos);
-    // std::cout << "[DEBUG] Parsed command: [" << command << "], Parameters: [" << parameters << "]" << std::endl;
 }
 
 bool Server::parseInput(Client& client, const std::string& message) 
@@ -48,6 +46,11 @@ bool Server::parseInput(Client& client, const std::string& message)
     std::string command;
     std::string parameters;
     parseMessage(message, command, parameters);
+    //debug
+    std::cout << "message: " << message << std::endl; 
+    std::cout << "Command: " << command << std::endl; // thi is good 
+    std::cout << "Parameters: " << parameters << std::endl; // we ahve the : here adn join egt eror
+
     // Always allow CAP commands
     if (command == "CAP") 
     {
@@ -91,8 +94,9 @@ bool Server::parseInput(Client& client, const std::string& message)
             }
             return true;
         }
-        // Reject other commands until registered
         sendToClient(client.getSocket(), ERR_NOTREGISTERED(serverIp_));
+        std::cout << "[DEBUG]Not registered" << std::endl;
+        std::cout << ERR_NOTREGISTERED(serverIp_) << std::endl;
         return false;
     }
     // reject pass after login
@@ -160,7 +164,17 @@ bool Server::parseInitialInput(Client& client, const std::string command, std::s
             sendToClient(client.getSocket(), ERR_NEEDMOREPARAMS(serverIp_, "USER"));
             return false;
         }
-        client.setUserName(parameters);
+        // Find the first space to get username
+        size_t firstSpace = parameters.find(' ');
+        if (firstSpace == std::string::npos)
+        {
+            sendToClient(client.getSocket(), ERR_NEEDMOREPARAMS(serverIp_, "USER"));
+            return false;
+        }
+        // Extract just the username (first parameter)
+        std::string username = parameters.substr(0, firstSpace);
+        client.setUserName(username);
+        std::cout << "[DEBUG] - Username: " << username << std::endl;
         return true;
     }
     return false;
