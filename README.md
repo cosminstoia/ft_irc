@@ -32,11 +32,19 @@ cd it
 make
 ./ircserv <port> <pass>
 
-## no clinet test
-nc -c localhost <port>
+
+
+## no client test
+nc -c localhost <port> [enter]
+PASS password [enter]
+NICK test [enter]
+USER testuser hostname servername :Real Name [enter] 
+[you shuld see a confirmation adn be able to use commands]
 
 
 #using irssi
 brew install irssi
 cp config ~/.issi/config
 irssi -c <host> -p <port> -w <pass>
+
+/mode #channel +i/-i ....

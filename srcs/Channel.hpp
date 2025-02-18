@@ -12,7 +12,7 @@ class Channel
         void removeMember(int socket) { members_.erase(socket); }
         void addOperator(int socket) { operators_.insert(socket); }
         void removeOperator(int socket) { operators_.erase(socket); }
-        bool isMember(int socket) { return members_.find(socket) != members_.end(); }
+        bool isMember(int socket) const { return members_.find(socket) != members_.end(); }
         bool isOperator(int socket) { return operators_.find(socket) != operators_.end(); }
         void setTopic(const std::string& newTopic) { topic_ = newTopic; }
         std::string const& getTopic() const { return topic_; }
@@ -21,9 +21,8 @@ class Channel
         std::set<int> const& getOperators() const { return operators_; }
         bool isTopicRestricted() const { return topicRestricted_; }
         void topicRestricted(bool restricted) { topicRestricted_ = restricted; }
-        bool hasPassword() const { return !password_.empty(); }
+        std::string const& getPassword() const { return password_; }
         void setPassword(const std::string& password) { password_ = password; }
-        bool checkPassword(const std::string& password) const { return password_ == password; }
         void setUserLimit(int limit) { userLimit_ = limit; }
         int getUserLimit() const { return userLimit_; }
         bool isFull() const { return members_.size() >= static_cast<size_t>(userLimit_); }

@@ -15,6 +15,7 @@ class Client
         int                     socket_;
         std::string             userName_;
         std::string             nickName_;
+        std::string             realName_;
         bool                    loggedIn_;
         std::string             receiveBuffer_;
         std::string             clientPassword_;
@@ -52,6 +53,8 @@ class Client
         void joinChannel(const std::string& channel) { joinedChannels_.insert(channel); }
         void leaveChannel(const std::string& channel) { joinedChannels_.erase(channel); }
         const std::string& getIpAddr() const { return ipAddress_; }
+        void setRealName(const std::string& realName) { realName_ = realName; }
+        const std::string& getRealName() const { return realName_; }
         
         // ping pong mechanism
         void updatePongReceived() { lastPong_ = std::chrono::system_clock::now(); awaitingPong_ = false; }

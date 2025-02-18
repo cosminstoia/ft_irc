@@ -46,23 +46,17 @@ bool Server::parseInput(Client& client, const std::string& message)
     std::string command;
     std::string parameters;
     parseMessage(message, command, parameters);
-    //debug
-    std::cout << "message: " << message << std::endl; 
-    std::cout << "Command: " << command << std::endl; // thi is good 
-    std::cout << "Parameters: " << parameters << std::endl; // we ahve the : here adn join egt eror
 
-    // Always allow CAP commands
+    // 1. Always allow CAP commands
     if (command == "CAP") 
     {
         if (parameters == "LS 302") 
         {
-            sendToClient(client.getSocket(), "CAP * LS :\r\n");
+            sendToClient(client.getSocket(), "CAP * LS :");
             return true;
         }
         else if (parameters == "END") 
-        {
             return true;
-        }
     }
     // Handle PING and PONG commands regardless of login status
     if (command == "PING") 
@@ -75,47 +69,42 @@ bool Server::parseInput(Client& client, const std::string& message)
         cmdPong(client.getSocket(), parameters);
         return true;
     }
-    // Handle registration commands if not logged in
+
+    // 2. If not logged in, only allow registration commands
     if (!client.isLoggedIn())
     {
-        // Only allow registration commands
         if (command == "PASS" || command == "NICK" || command == "USER")
         {
-            if (parseInitialInput(client, command, parameters))
+            bool result = parseInitialInput(client, command, parameters);
+            if (result && 
+            !client.getNickName().empty() && 
+            !client.getUserName().empty() && 
+            !client.getPassword().empty())
             {
-                // Check if we have all required information
-                if (!client.getNickName().empty() && 
-                    !client.getUserName().empty() && 
-                    !client.getPassword().empty())
-                {
-                    welcomeClient(client.getSocket());
-                    return false;
-                }
+                welcomeClient(client.getSocket());
+                return true;
             }
-            return true;
+            return result;
         }
         sendToClient(client.getSocket(), ERR_NOTREGISTERED(serverIp_));
-        std::cout << "[DEBUG]Not registered" << std::endl;
-        std::cout << ERR_NOTREGISTERED(serverIp_) << std::endl;
-        return false;
     }
-    // reject pass after login
+    // 3. Handle regular commands for logged-in users
     if (command == "PASS")
-    {
         sendToClient(client.getSocket(), "You are already logged in!");
-        return false;
-    }
     auto it = commandMap_.find(command);
     if (it != commandMap_.end())
     {
         it->second(client.getSocket(), parameters);
         return true;
     }
+    else if (it == commandMap_.end())
+        printInfoToServer(ERROR, "Client " + client.getNickName() + " sent unknown command: " + command, false);
     return false;
 }
 
 bool Server::parseInitialInput(Client& client, const std::string command, std::string parameters) 
 {
+    // we only allow PASS, NICK, and USER commands before login
     if (command == "PASS") 
     {
         if (parameters.empty())
@@ -123,13 +112,7 @@ bool Server::parseInitialInput(Client& client, const std::string command, std::s
             sendToClient(client.getSocket(), ERR_NEEDMOREPARAMS(serverIp_, "PASS"));
             return false;
         }
-        else if (parameters == password_)
-        {
-            client.setPassword(parameters);
-            printInfoToServer(INFO, "Authentication successful!", false);
-            return true;
-        }
-        else
+        if (parameters != password_)
         {
             sendToClient(client.getSocket(), ERR_PASSWDMISMATCH(serverIp_));
             printInfoToServer(INFO, "Client introduced wrong password.", false);
@@ -138,43 +121,37 @@ bool Server::parseInitialInput(Client& client, const std::string command, std::s
             close(client.getSocket());
             return false;
         }
-    }
-    else if (command == "NICK")
-    {
-        if (parameters.empty())
-        {
-            sendToClient(client.getSocket(), ERR_NEEDMOREPARAMS(serverIp_, "NICK"));
-            return false;
-        }
-        for (const auto& pair : clients_)
-        {
-            if (pair.second.getNickName() == parameters)
-            {
-                sendToClient(client.getSocket(), ERR_NICKNAMEINUSE(serverIp_, parameters));
-                return false;
-            }
-        }
-        client.setNickName(parameters);
+        client.setPassword(parameters);
+        printInfoToServer(INFO, "Client introduced correct password!", false);
         return true;
     }
-    else if (command == "USER")
+    if (command == "NICK")
     {
-        if (parameters.empty())
+        cmdNick(client.getSocket(), parameters);
+        return true;
+    }
+    if (command == "USER")
+    {
+        // Split USER parameters: username hostname servername :realname
+        std::istringstream iss(parameters);
+        std::string username, hostname, servername, realname;
+        if (!(iss >> username >> hostname >> servername))
         {
             sendToClient(client.getSocket(), ERR_NEEDMOREPARAMS(serverIp_, "USER"));
             return false;
         }
-        // Find the first space to get username
-        size_t firstSpace = parameters.find(' ');
-        if (firstSpace == std::string::npos)
-        {
-            sendToClient(client.getSocket(), ERR_NEEDMOREPARAMS(serverIp_, "USER"));
-            return false;
-        }
-        // Extract just the username (first parameter)
-        std::string username = parameters.substr(0, firstSpace);
+        // get realname , its all after the first colon
+        size_t pos = parameters.find(':');
+        if (pos != std::string::npos)
+            realname = parameters.substr(pos + 1);
+        else
+            realname = username; // default to username if no realname provided
         client.setUserName(username);
-        std::cout << "[DEBUG] - Username: " << username << std::endl;
+        client.setRealName(realname);
+        // std::cout << "[DEBUG] - Username: " << username << std::endl;
+        // std::cout << "[DEBUG] - Realname: " << realname << std::endl;
+        // std::cout << "[DEBUG] - Hostname: " << hostname << std::endl;
+        // std::cout << "[DEBUG] - Servername: " << servername << std::endl;
         return true;
     }
     return false;

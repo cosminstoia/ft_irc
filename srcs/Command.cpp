@@ -19,101 +19,156 @@ void Server::setupCmds()
 void Server::validateParams(int clientSocket, const std::string& params, const std::string& command)
 {
     if (params.empty())
-    {
-        sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, command));
-        return;
-    }
+        return sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, command));
 }
 
 void Server::cmdNick(int clientSocket, std::string const& params)
 {
-    validateParams(clientSocket, params, "NICK");
-    for (const auto& pair : clients_) 
+    if (params.empty())
+        return sendToClient(clientSocket, ERR_NONICKNAMEGIVEN(serverIp_));
+    
+    if (params.find_first_of(" ,*?!@.") != std::string::npos)
+        return sendToClient(clientSocket, ERR_ERRONEUSNICKNAME(serverIp_, params));
+
+    // check if the nickname is already in use
+    for (const auto& pair : clients_)
+        if (pair.second.getNickName() == params && pair.first != clientSocket)
+            return sendToClient(clientSocket, ERR_NICKNAMEINUSE(serverIp_, params));
+
+    Client& client = clients_[clientSocket];
+    std::string oldNick = client.getNickName();
+    
+    if (oldNick != params)
     {
-        if (pair.second.getNickName() == params) 
+        std::string nickMsg;
+        if (client.isLoggedIn())
+            // full format hostmask
+            nickMsg = ":" + oldNick + "!" + client.getUserName() +
+                                "@" + serverIp_ + " NICK :" + params;
+        else
+            nickMsg = ":" + serverIp_ + " NICK :" + params;
+
+        // Update the nickname in server data
+        client.setNickName(params);
+
+        // Notify all clients in the same channel
+        std::set<int> notifiedClients;
+        for (const auto& channel : channels_)
         {
-            sendToClient(clientSocket, ERR_NICKNAMEINUSE(serverIp_, params));
-            return;
+            if (channel.second.isMember(clientSocket))
+            {
+                for (int memberSocket : channel.second.getMembers())
+                {
+                    if (notifiedClients.find(memberSocket) == notifiedClients.end())
+                    {
+                        sendToClient(memberSocket, nickMsg);
+                        notifiedClients.insert(memberSocket);
+                    }
+                }
+            }
         }
+        // Also send to the client itself if not already sent
+        if (notifiedClients.find(clientSocket) == notifiedClients.end())
+            sendToClient(clientSocket, nickMsg);
     }
-    clients_[clientSocket].setNickName(params);
-    if (!clients_[clientSocket].getUserName().empty() && !clients_[clientSocket].isLoggedIn()) 
-        welcomeClient(clientSocket);
 }
 
 void Server::cmdUser(int clientSocket, std::string const& params)
 {
-    validateParams(clientSocket, params, "USER");
-    clients_[clientSocket].setUserName(params);
-    if (!clients_[clientSocket].getNickName().empty() && !clients_[clientSocket].isLoggedIn()) 
+    // Split params into required parts
+    std::istringstream iss(params);
+    std::string username, hostname, servername, realname;
+    
+    // Get first 3 parameters
+    if (!(iss >> username >> hostname >> servername))
+        return sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "USER"));
+
+    // Get realname (everything after the :)
+    size_t colonPos = params.find(':');
+    if (colonPos == std::string::npos)
+        return sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "USER"));
+
+    Client& client = clients_[clientSocket];
+
+    // Check if user is already registered
+    if (client.isLoggedIn())
+        return sendToClient(clientSocket, ERR_ALREADYREGISTRED(serverIp_));
+
+    client.setUserName(username);
+    client.setRealName(realname);
+
+    // If we have both USER and NICK, welcome the client
+    if (!client.getNickName().empty() && !client.isLoggedIn())
         welcomeClient(clientSocket);
 }
 
 void Server::cmdJoin(int clientSocket, std::string const& params)
 {
-    validateParams(clientSocket, params, "JOIN");
+    if (params == ":" || params.empty())
+        return sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "JOIN"));
     std::string channelName = params;
+
+    if (channelName[0] != '#')
+        channelName = "#" + channelName;
+
+    // std::cout << "[debug]Channel name: " << channelName << std::endl;
     if (channels_.find(channelName) == channels_.end())
     {
         channels_.emplace(channelName, Channel(channelName)); // Explicitly construct the channel
-        printInfoToServer(INFO, "Channel " + channelName + " created by " + clients_[clientSocket].getNickName(), false);
+        printInfoToServer(CHANNEL, "Channel " + channelName + " created by " + clients_[clientSocket].getNickName(), false);
     }
     Channel& channel = channels_[channelName];
+    bool isFirstMember = channel.getMembers().empty();
+
+    if(!channel.getPassword().empty() && params != channel.getPassword())
+        return sendToClient(clientSocket, ERR_BADCHANNELKEY(serverIp_, channelName));
+
+    // check restrictions
     if (channel.isInviteOnly() && !channel.isInvited(clientSocket))
-    {
-        sendToClient(clientSocket, ERR_INVITEONLYCHAN(serverIp_, channelName));
-        return;
-    }
+        return sendToClient(clientSocket, ERR_INVITEONLYCHAN(serverIp_, channelName));
     if (channel.isFull())
-    {
-        sendToClient(clientSocket, ERR_CHANNELISFULL(serverIp_, channelName));
-        return;
-    }
+        return sendToClient(clientSocket, ERR_CHANNELISFULL(serverIp_, channelName));
+
+    // add client to channel
     channel.addMember(clientSocket);
-    // Send topic if it exists
+    // notify other clients in the channel
+    std::string joinMsg = RPL_JOIN(serverIp_, clients_[clientSocket].getNickName(), channelName);
+    for (int memberSocket : channel.getMembers())
+        sendToClient(memberSocket, joinMsg);
+    if (isFirstMember)
+    {
+        channel.addOperator(clientSocket);
+        std::string modeMsg = ":" + serverIp_ + " MODE " + channelName + " +o " + 
+                             clients_[clientSocket].getNickName();
+        sendToClient(clientSocket, modeMsg);
+        sendToClient(clientSocket, "You're now channel operator");
+    }
     if (channel.getTopic().empty())
         sendToClient(clientSocket, RPL_NOTOPIC(serverIp_, clients_[clientSocket].getNickName(), channelName));
     else
         sendToClient(clientSocket, RPL_TOPIC(serverIp_, clients_[clientSocket].getNickName(), channelName, channel.getTopic()));
-
-    std::string joinMsg = RPL_JOIN(serverIp_, clients_[clientSocket].getNickName(), channelName);
-    for (int memberSocket : channel.getMembers())
-    {
-        sendToClient(memberSocket, joinMsg);
-    }
-    sendToClient(clientSocket, joinMsg);
     printInfoToServer(CHANNEL, "Client " + clients_[clientSocket].getNickName() + " joined channel " + channelName, false);
 }
 
 void Server::cmdPrivmsg(int clientSocket, std::string const& params)
-{
-    //debug print
-    // std::cout << "cmdPrivmsg: " << params << std::endl;
-    
+{    
     validateParams(clientSocket, params, "PRIVMSG");
+
     size_t sp = params.find(' ');
     if (sp == std::string::npos || sp == 0)
-    {
-        sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "PRIVMSG"));
-        return;
-    }
+        return sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "PRIVMSG"));
+
     std::string recipient = params.substr(0, sp); // "#chanel" or "user"
     std::string message = params.substr(sp + 1); // ":message"
 
     if (recipient[0] == '#')
     {
         if (channels_.find(recipient) == channels_.end())
-        {
-            sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, recipient));
-            return;
-        }
+            return sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, recipient));
 
         Channel& channel = channels_[recipient];
         if (!channel.isMember(clientSocket))
-        {
-            sendToClient(clientSocket, ERR_CANNOTSENDTOCHAN(serverIp_, recipient));
-            return;
-        }
+            return sendToClient(clientSocket, ERR_CANNOTSENDTOCHAN(serverIp_, recipient));
         if (!message.empty() && message[1] == '!')
         {
             printInfoToServer(INFO, "BOT called by " + clients_[clientSocket].getNickName(), false);
@@ -154,7 +209,7 @@ void Server::cmdPrivmsg(int clientSocket, std::string const& params)
             return;
         }
         std::string senderNick = clients_[clientSocket].getNickName();
-        std::string privmsg = ":" + senderNick + " PRIVMSG " + recipient + " :" + message + "\r\n";
+        std::string privmsg = ":" + senderNick + " PRIVMSG " + recipient + " :" + message;
         sendToClient(recipientSocket, privmsg);
         printInfoToServer(PRIVMSG, "PRIVMSG sent to " + recipient + " from " + senderNick, false);
     }
@@ -186,7 +241,8 @@ void Server::cmdQuit(int clientSocket, std::string const& params)
 
 void Server::cmdPing(int clientSocket, std::string const& params)
 {
-    std::string response = "PONG :" + serverIp_ + " :" + params + "\r\n";
+    (void)params;
+    std::string response = "PONG :" + serverIp_;
     sendToClient(clientSocket, response);
 }
 
@@ -197,7 +253,6 @@ void Server::cmdPong(int clientSocket, std::string const& params)
     for (const auto& pair : channels_) 
     {
         const std::string& key = pair.first;
-        // std::cout << "Key: " << key << std::endl;
         lastKey = key;
     }
     bot_->botPeriodicBroadcast(*this, clientSocket, lastKey);
@@ -205,7 +260,7 @@ void Server::cmdPong(int clientSocket, std::string const& params)
     if (it != clients_.end())
     {
         it->second.updatePongReceived();
-        printInfoToServer(PONG, "Received PONG from client on socket " + std::to_string(clientSocket), false);
+        printInfoToServer(PONG, "Received from client on socket " + std::to_string(clientSocket), false);
     }
 }
 
@@ -224,6 +279,8 @@ void Server::cmdTopic(int clientSocket, std::string const& params)
         return;
     }
     Channel& channel = channels_[channelName];
+    if (!channel.isMember(clientSocket))
+        return sendToClient(clientSocket, ERR_NOTONCHANNEL(serverIp_, channelName));
     if (topic.empty())
     {
         std::string currentTopic = channel.getTopic();
@@ -247,35 +304,36 @@ void Server::cmdTopic(int clientSocket, std::string const& params)
 void Server::cmdKick(int clientSocket, std::string const& params)
 {
     validateParams(clientSocket, params, "KICK");
+
     std::istringstream iss(params);
     std::string channelName, targetNick, reason;
     iss >> channelName >> targetNick;
+
     std::getline(iss, reason); // Remaining part is the reason
     reason.erase(0, reason.find_first_not_of(' ')); // Trim leading spaces
     
     if (channels_.find(channelName) == channels_.end())
-    {
-        sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, channelName));
-        return;
-    }
+        return sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, channelName));
+
     Channel& channel = channels_[channelName];
     if (!channel.isOperator(clientSocket))
-    {
-        sendToClient(clientSocket, ERR_CHANOPRIVSNEEDED(serverIp_, channelName));
-        return;
-    }
-    int targetSocket = findClientByNick(targetNick);
-    if (targetSocket == -1 || !channel.isMember(targetSocket))
-    {
-        sendToClient(clientSocket, ERR_NOSUCHNICK(serverIp_, targetNick));
-        return;
-    }
-    channel.removeClient(targetSocket);
-    removeClient(targetSocket);
+        return sendToClient(clientSocket, ERR_CHANOPRIVSNEEDED(serverIp_, channelName));
 
-    sendToClient(targetSocket, "You have been kicked from " + channelName + " by " + clients_[clientSocket].getNickName() + " :" + reason);
+    int targetSocket = findClientByNick(targetNick);
+
+    if (targetSocket == -1 || !channel.isMember(targetSocket))
+        return sendToClient(clientSocket, ERR_NOSUCHNICK(serverIp_, targetNick));
+
+    // Notify all clients in the channel
+    std::string kickMsg = ":" + clients_[clientSocket].getNickName() + "!" + 
+                         clients_[clientSocket].getUserName() + "@" + serverIp_ + 
+                         " KICK " + channelName + " " + targetNick + " :" + reason; // mawyb make all defined
+    for (int memberSocket : channel.getMembers())
+        sendToClient(memberSocket, kickMsg);
+    
+    channel.removeClient(targetSocket);
     sendToClient(clientSocket, "You have kicked " + targetNick + " from " + channelName);
-    printInfoToServer(INFO, clients_[clientSocket].getNickName() + " kicked " + targetNick + " from " + channelName, false);
+    printInfoToServer(WARNING, clients_[clientSocket].getNickName() + " kicked " + targetNick + " from " + channelName, false);
 }
 
 void Server::cmdInvite(int clientSocket, std::string const& params)
@@ -286,26 +344,21 @@ void Server::cmdInvite(int clientSocket, std::string const& params)
     iss >> targetNick >> channelName;
 
     if (channels_.find(channelName) == channels_.end())
-    {
-        sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, channelName));
-        return;
-    }
+        return sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, channelName));
+
     Channel& channel = channels_[channelName];
     if (!channel.isMember(clientSocket))
-    {
-        sendToClient(clientSocket, ERR_NOTONCHANNEL(serverIp_, channelName));
-        return;
-    }
+        return sendToClient(clientSocket, ERR_NOTONCHANNEL(serverIp_, channelName));
+
     int targetSocket = findClientByNick(targetNick);
     if (targetSocket == -1)
-    {
-        sendToClient(clientSocket, ERR_NOSUCHNICK(serverIp_, targetNick));
-        return;
-    }
+        return sendToClient(clientSocket, ERR_NOSUCHNICK(serverIp_, targetNick));
+
     channel.addInvite(targetSocket);
     sendToClient(targetSocket, RPL_INVITE(serverIp_, clients_[clientSocket].getNickName(), targetNick, channelName));
-    sendToClient(clientSocket, "You have invited " + targetNick + " to " + channelName);
-
+    sendToClient(clientSocket, ":" + clients_[clientSocket].getNickName() + "!" + 
+                           clients_[clientSocket].getUserName() + "@" + serverIp_ + 
+                           " INVITE " + targetNick + " :" + channelName);
     printInfoToServer(INFO, clients_[clientSocket].getNickName() + " invited " + targetNick + " to " + channelName, false);
 }
 
@@ -314,154 +367,126 @@ void Server::cmdMode(int clientSocket, std::string const& params)
     validateParams(clientSocket, params, "MODE");
     std::istringstream iss(params);
     std::string target, mode, modeParams;
-    iss >> target >> mode >> modeParams;
-
+    iss >> target >> mode;
+    std::getline(iss, modeParams); // Better way to get remaining params with spaces
     modeParams.erase(0, modeParams.find_first_not_of(' '));
 
-    if (channels_.find(target) != channels_.end())
+    // Add # prefix if missing
+    if (target[0] != '#')
+        target = "#" + target;
+
+    if (channels_.find(target) == channels_.end())
+        return sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, target));
+
+    Channel& channel = channels_[target];
+    if (!channel.isMember(clientSocket))
+        return sendToClient(clientSocket, ERR_NOTONCHANNEL(serverIp_, target));
+    if (!channel.isOperator(clientSocket))
+        return sendToClient(clientSocket, ERR_CHANOPRIVSNEEDED(serverIp_, target));
+    if (mode.length() != 2)
+        return sendToClient(clientSocket, ERR_UNKNOWNMODE(serverIp_, mode));
+
+    bool adding = (mode[0] == '+');
+    char modeChar = mode[1];
+
+    std::string userHost = clients_[clientSocket].getNickName() + "!" + 
+                          clients_[clientSocket].getUserName() + "@" + serverIp_;
+    std::string modeMsg;
+
+    switch(modeChar)
     {
-        Channel& channel = channels_[target];
-        if (!channel.isMember(clientSocket))
-        {
-            sendToClient(clientSocket, ERR_NOTONCHANNEL(serverIp_, target));
-            return;
-        }
-        if (!channel.isOperator(clientSocket))
-        {
-            sendToClient(clientSocket, ERR_CHANOPRIVSNEEDED(serverIp_, target));
-            return;
-        }
-        // Handle channel modes
-        if (mode == "+i") // Set invite-only
-        {
-            channel.setInviteOnly(true);
-            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "+i", ""));
-        }
-        else if (mode == "-i") 
-        {
-            channel.setInviteOnly(false);
-            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "-i", ""));
-        }
-        else if (mode == "+t") // Restrict topic changes to operators
-        {
-            channel.topicRestricted(true);
-            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "+t", ""));
-        }
-        else if (mode == "-t") 
-        {
-            channel.topicRestricted(false);
-            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "-t", ""));
-        }
-        else if (mode == "+k") // Set channel key (password)
+        case 'i':   // Invite-only
+            channel.setInviteOnly(adding);
+            modeMsg = ":" + userHost + " MODE " + target + " " + mode;
+            break;
+
+        case 't':   // Topic restriction
+            channel.topicRestricted(adding);
+            modeMsg = ":" + userHost + " MODE " + target + " " + mode;
+            break;
+
+        case 'k':   // Key/Password
+            if (adding && modeParams.empty())
+                return sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
+            channel.setPassword(adding ? modeParams : "");
+            modeMsg = ":" + userHost + " MODE " + target + " " + mode + 
+                     (adding ? " " + modeParams : "");
+            break;
+
+        case 'o':   // Operator status
         {
             if (modeParams.empty())
-            {
-                sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
-                return;
-            }
-            channel.setPassword(modeParams);
-            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "+k", modeParams));
-        }
-        else if (mode == "-k") // Remove channel key
-        {
-            channel.setPassword(""); // Clear the password
-            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "-k", ""));
-        }
-        else if (mode == "+o") // Grant operator status
-        {
-            if (modeParams.empty())
-            {
-                sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
-                return;
-            }
+                return sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
+            
+            // Trim any extra spaces from nickname
+            modeParams = modeParams.substr(0, modeParams.find(' '));
+            
             int targetSocket = findClientByNick(modeParams);
             if (targetSocket == -1)
-            {
-                sendToClient(clientSocket, ERR_NOSUCHNICK(serverIp_, modeParams));
-                return;
-            }
-            channel.addOperator(targetSocket);
-            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "+o", modeParams));
+                return sendToClient(clientSocket, ERR_NOSUCHNICK(serverIp_, modeParams));
+            
+            if (!channel.isMember(targetSocket))
+                return sendToClient(clientSocket, ERR_USERNOTINCHANNEL(serverIp_, modeParams, target));
+            
+            if (adding)
+                channel.addOperator(targetSocket);
+            else
+                channel.removeOperator(targetSocket);
+            
+            modeMsg = ":" + userHost + " MODE " + target + " " + mode + " " + modeParams;
+            break;
         }
-        else if (mode == "-o") // Remove operator status
-        {
-            if (modeParams.empty())
+        case 'l':   // User limit
+            if (adding)
             {
-                sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
-                return;
-            }
-
-            int targetSocket = findClientByNick(modeParams);
-            if (targetSocket == -1)
-            {
-                sendToClient(clientSocket, ERR_NOSUCHNICK(serverIp_, modeParams));
-                return;
-            }
-
-            channel.removeOperator(targetSocket);
-            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "-o", modeParams));
-        }
-        else if (mode == "+l") // Set user limit
-        {
-            try
-            {
-                int limit = std::stoi(modeParams);
-                if (limit <= 0)
+                try
                 {
-                    sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
-                    return;
+                    int limit = std::stoi(modeParams);
+                    if (limit <= 0)
+                        return sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
+                    channel.setUserLimit(limit);
+                    modeMsg = ":" + userHost + " MODE " + target + " " + mode + " " + modeParams;
                 }
-                channel.setUserLimit(limit);
-                sendToClient(clientSocket, RPL_MODE(serverIp_, target, "+l", std::to_string(limit)));
+                catch (std::exception& e)
+                {
+                    return sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
+                }
             }
-            catch (std::exception& e)
+            else
             {
-                sendToClient(clientSocket, ERR_NEEDMOREPARAMS(serverIp_, "MODE"));
+                channel.setUserLimit(0);
+                modeMsg = ":" + userHost + " MODE " + target + " " + mode;
             }
-        }
-        else if (mode == "-l") // Remove user limit
-        {
-            channel.setUserLimit(0);
-            sendToClient(clientSocket, RPL_MODE(serverIp_, target, "-l", ""));
-        }
-        else
-        {
-            sendToClient(clientSocket, ERR_UNKNOWNMODE(serverIp_, mode));
-        }
+            break;
+            
+        default:
+            return sendToClient(clientSocket, ERR_UNKNOWNMODE(serverIp_, mode));
     }
-    else
-    {
-        sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, target));
-    }
+    // Broadcast to all channel members
+    for (int memberSocket : channel.getMembers())
+        sendToClient(memberSocket, modeMsg);
 }
-// the problme is from first 2 inital pasrign adn error mesage in loop
+
 void Server::cmdPart(int clientSocket, std::string const& params)
 {
     validateParams(clientSocket, params, "PART");
     std::string channelName = params;
+
     if (channels_.find(channelName) == channels_.end())
-    {
-        sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, channelName));
-        return;
-    }
+        return sendToClient(clientSocket, ERR_NOSUCHCHANNEL(serverIp_, channelName));
+
     Channel& channel = channels_[channelName];
     if (!channel.isMember(clientSocket))
-    {
-        sendToClient(clientSocket, ERR_NOTONCHANNEL(serverIp_, channelName));
-        return;
-    }
+        return sendToClient(clientSocket, ERR_NOTONCHANNEL(serverIp_, channelName));
+
+    // construct msg
+    std::string partMsg = ":" + clients_[clientSocket].getNickName() + "!" +
+        clients_[clientSocket].getUserName() + "@" + clients_[clientSocket].getIpAddr() +
+        " PART " + channelName;
+    for (int memberSocket : channel.getMembers())
+        sendToClient(memberSocket, partMsg);
     channel.removeMember(clientSocket);
     clients_[clientSocket].leaveChannel(channelName);
-    // Notify other members
-    std::string partMsg = ":" + clients_[clientSocket].getNickName() + "!" +
-                          clients_[clientSocket].getUserName() + "@" + clients_[clientSocket].getIpAddr() +
-                          " PART " + channelName + "\r\n";
-    std::cout << "this shudl be the user:" << clients_[clientSocket].getUserName() << std::endl;
-    std::cout << partMsg << std::endl;
-    for (int memberSocket : channel.getMembers())
-    {
-        sendToClient(memberSocket, partMsg);
-    }
-    printInfoToServer(INFO, "Client " + clients_[clientSocket].getNickName() +
+    printInfoToServer(CHANNEL, "Client " + clients_[clientSocket].getNickName() +
                       " has left channel " + channelName, false);
 }

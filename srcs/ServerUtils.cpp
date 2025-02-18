@@ -13,10 +13,7 @@ void Server::connectClient(int clientSocket)
         client.setBuffer(buffer.erase(0, pos + 2));
         // std::cout << "[DEBUG] Parsed message: " << message << std::endl;
         if(!parseInput(client, message)) 
-        {
-            printInfoToServer(ERROR, "Error parsing message: " + message, false);
-            return;
-        }
+            return printInfoToServer(ERROR, "Error parsing message: " + message, false);
     }
 }
 
@@ -54,6 +51,7 @@ void Server::sendToClient(int clientSocket, std::string const& message)
 {
     std::string fullMessage = message + "\r\n";
     ssize_t bytesSend = send(clientSocket, fullMessage.c_str(), fullMessage.length(), 0);
+    // std::cout << "Message sent: " << message << std::endl;
     if (bytesSend < 0)
     {
         std::cout << fullMessage << std::endl;
@@ -83,16 +81,6 @@ void Server::welcomeClient(int clientSocket)
 {
     Client& client = clients_[clientSocket];
     std::string nick = client.getNickName();
-    for (auto& pair : clients_)
-    {
-        if (pair.second.getNickName() == nick && pair.first != clientSocket)
-        {
-            sendToClient(clientSocket, ERR_NICKNAMEINUSE(serverIp_, nick));
-            printInfoToServer(WARNING, "Username " RED + nick + RESET + " is already used!" , false);
-            removeClient(clientSocket);
-            return;
-        }
-    }
     client.setLoggedIn(true);
     sendToClient(clientSocket, RPL_WELCOME(serverIp_, nick));
     sendToClient(clientSocket, "Authentication successful!");
@@ -112,10 +100,10 @@ void Server::pingClients()
         }
         if (client.needsPing())
         {
-            std::string pingMessage = "PING :" + std::to_string(std::time(nullptr)) + "\r\n";
+            std::string pingMessage = "PING :" + std::to_string(std::time(nullptr));
             sendToClient(clientSocket, pingMessage);
             client.setPingSent();
-            printInfoToServer(PING, "Sent PING to client on socket " + std::to_string(clientSocket), false);
+            printInfoToServer(PING, "Sent to client on socket " + std::to_string(clientSocket), false);
         }
     }
     for (int socket : timeoutClients)

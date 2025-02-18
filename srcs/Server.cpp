@@ -58,7 +58,7 @@ Server::~Server()
 
 void Server::start() 
 {
-    // asciiArt();
+    asciiArt();
     printInfoToServer(INFO, "Waiting for conections...", false);
     while (isRunning_)
     {
@@ -131,6 +131,6 @@ void Server::handleClient(Client& client)
 
 void Server::sendMsgToChannel(int clientSocket, const std::string& recipient, const std::string& message) 
 {
-    std::string fullMessage = ":Bot!bot@" + serverIp_ + " PRIVMSG " + recipient + " :" + message + "\r\n";
+    std::string fullMessage = ":Bot!bot@" + serverIp_ + " PRIVMSG " + recipient + " :" + message;
     sendToClient(clientSocket, fullMessage);
 }
