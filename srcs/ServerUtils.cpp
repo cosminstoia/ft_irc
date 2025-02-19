@@ -22,14 +22,18 @@ void Server::removeClient(int clientSocket)
     if (it != clients_.end()) 
     {
         Client& client = it->second;
-        for (auto& channel : channels_)
+        for (auto chIt = channels_.begin(); chIt != channels_.end();)
         {
-            if (channel.second.isMember(clientSocket))
+            if (chIt->second.isMember(clientSocket))
             {
-                channel.second.removeMember(clientSocket);
-                if (channel.second.getMembers().empty())
-                    channels_.erase(channel.first);
+                chIt->second.removeMember(clientSocket);
+                if (chIt->second.getMembers().empty())
+                {
+                    chIt = channels_.erase(chIt);
+                    continue; // move to next iteration
+                }
             }
+            ++chIt;
         }
         printInfoToServer(DISCONNECTION, "Client with nick: " + client.getNickName() + 
                         " on socket " + std::to_string(clientSocket), false);
