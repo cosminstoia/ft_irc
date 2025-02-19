@@ -81,16 +81,21 @@ bool Server::parseInput(Client& client, const std::string& message)
             !client.getUserName().empty() && 
             !client.getPassword().empty())
             {
+                client.setLoggedIn(true);
                 welcomeClient(client.getSocket());
                 return true;
             }
             return result;
         }
         sendToClient(client.getSocket(), ERR_NOTREGISTERED(serverIp_));
+        return false;
     }
     // 3. Handle regular commands for logged-in users
     if (command == "PASS")
+    {
         sendToClient(client.getSocket(), "You are already logged in!");
+        return false;
+    }
     auto it = commandMap_.find(command);
     if (it != commandMap_.end())
     {
@@ -148,10 +153,6 @@ bool Server::parseInitialInput(Client& client, const std::string command, std::s
             realname = username; // default to username if no realname provided
         client.setUserName(username);
         client.setRealName(realname);
-        // std::cout << "[DEBUG] - Username: " << username << std::endl;
-        // std::cout << "[DEBUG] - Realname: " << realname << std::endl;
-        // std::cout << "[DEBUG] - Hostname: " << hostname << std::endl;
-        // std::cout << "[DEBUG] - Servername: " << servername << std::endl;
         return true;
     }
     return false;

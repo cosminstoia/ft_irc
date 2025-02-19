@@ -83,7 +83,6 @@ void Server::welcomeClient(int clientSocket)
 {
     Client& client = clients_[clientSocket];
     std::string nick = client.getNickName();
-    client.setLoggedIn(true);
     sendToClient(clientSocket, RPL_WELCOME(serverIp_, nick));
     sendToClient(clientSocket, "Authentication successful!");
 }

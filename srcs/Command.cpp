@@ -83,9 +83,6 @@ void Server::cmdUser(int clientSocket, std::string const& params)
 
     client.setUserName(username);
     client.setRealName(realname);
-
-    if (!client.getNickName().empty() && !client.isLoggedIn())
-        welcomeClient(clientSocket);
 }
 
 void Server::cmdJoin(int clientSocket, std::string const& params)
