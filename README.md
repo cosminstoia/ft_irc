@@ -1,45 +1,120 @@
 # IRC Server
 
-This is a simple IRC server implementation that allows users to connect and communicate in channels. This README provides instructions on how to set up and connect to the server, as well as explanations of key concepts like sockets and ports.
+A lightweight IRC (Internet Relay Chat) server implementation supporting multiple clients, channel management, and connection stability through ping-pong mechanisms.
 
-## resource
-https://datatracker.ietf.org/doc/html/rfc1459
-https://datatracker.ietf.org/doc/html/rfc2812
-http://chi.cs.uchicago.edu/chirc/
-https://irssi.org/documentation/manual/
+## Table of Contents
+- [Core Concepts](#core-concepts)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Testing](#testing)
+- [Commands](#commands)
+- [Resources](#resources)
 
-What is a Socket and What is a Port?
-A socket is an endpoint for sending or receiving data across a computer network. It is a combination of an IP address and a port number, which together uniquely identify a connection to a specific service on a specific device. Think of a socket as the full address of an apartment, which includes both the street name and the apartment number.
+## Core Concepts
 
-What is a port?
-A port is a numerical identifier in the range of 0 to 65535 that is used to specify a particular service or application on a device. It acts as a communication endpoint for the socket. In our analogy, the port is like the street name where the apartment is located. It helps direct the data to the correct service running on that device.
+### What is a Socket?
+```
+IP Address + Port = Socket (Connection Endpoint)
+Example: 192.168.1.1:6667
+```
+A socket is an endpoint for network communication, combining an IP address and port number to uniquely identify a connection.
 
+### What is a Port?
+- Numerical identifier (0-65535)
+- Specifies service/application on a device
+- Think of it as an apartment number in a building
 
 ## Features
-- Supports multiple clients
-- Channel management
+- Multiple client support with non-blocking I/O
+- Channel management (creation, joining, leaving)
+- Operator privileges and channel modes
 - Ping-pong mechanism for connection stability
+- Command parsing and execution
+- Real-time message broadcasting
 
 ## Requirements
-- C++ compiler (e.g., g++)
-- Make (for building the project)
+- C++ compiler (g++)
+- Make
+- Unix-like operating system
 
 ## Installation
-git clone .....
-cd it
+```bash
+# Clone repository
+git clone [repository-url]
+cd [repository-name]
+
+# Build project
 make
-./ircserv <port> <pass>
 
-## no client test
-nc -c localhost <port> [enter]
-PASS password [enter]
-NICK test [enter]
-USER testuser hostname servername :Real Name [enter] 
-[you shuld see a confirmation adn be able to use commands]
+# Run server
+./ircserv <port> <password>
+```
 
-#using irssi
+## Testing
+
+### Using Netcat
+```bash
+nc -c localhost <port>
+PASS password
+NICK test
+USER testuser hostname servername :Real Name
+```
+
+### Using IRSSI
+```bash
+# Install IRSSI
 brew install irssi
-cp config ~/.issi/config
-irssi -c <host> -p <port> -w <pass>
 
-/mode #channel +i/
+# Configure IRSSI
+cp config ~/.irssi/config
+
+# Connect to server
+irssi -c <host> -p <port> -w <password>
+```
+
+## Commands
+
+### Channel Operator Commands
+```
+Command                         Description
+-------                        -----------
+MODE #channel +o <user>        Give operator status
+MODE #channel +i              Set invite-only
+MODE #channel +t              Set topic restriction
+MODE #channel +k <pass>       Set channel password
+MODE #channel +l <limit>      Set user limit
+KICK #channel <user>         Kick user
+INVITE <user> #channel       Invite user
+TOPIC #channel :<topic>      Change topic
+```
+
+## Resources
+- [IRC Protocol RFC 1459](https://datatracker.ietf.org/doc/html/rfc1459)
+- [IRC Protocol RFC 2812](https://datatracker.ietf.org/doc/html/rfc2812)
+- [chirc Documentation](http://chi.cs.uchicago.edu/chirc/)
+- [IRSSI Manual](https://irssi.org/documentation/manual/)
+
+## Architecture
+```
+Server Structure:
++---------------+
+| Poll Array    |
+|  - Server FD  |
+|  - Client FDs |
++---------------+
+       │
+       ▼
++---------------+
+| Client Map    |
+|  Socket → Data|
++---------------+
+       │
+       ▼
++---------------+
+| Channels Map  |
+| Name → Channel|
++---------------+
+```
+
+Last updated: 2025-02-19

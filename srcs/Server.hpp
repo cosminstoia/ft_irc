@@ -42,18 +42,18 @@ class Bot;
 class Server
 {
     private:
-        int         port_;                      // Port number to listen on
-        std::string password_;                  // Password to connect to the server
-        int         serverSocket_;              // Server socket file descriptor
-        struct sockaddr_in serverAddr_;         // Server address
-        std::string serverIp_;                  // Server IP address
-        std::vector<pollfd> pollFds_;           // Poll file descriptors
-        std::map<std::string, Channel> channels_;
-        std::map<int,Client> clients_;          // socket as key, Client as value
-        bool        isRunning_;                 // Server running flag  
-        std::unique_ptr<Bot> bot_;
+        int                             port_;               // Port number to listen on
+        std::string                     password_;           // Password to connect to the server
+        int                             serverSocket_;       // Server socket file descriptor
+        struct sockaddr_in              serverAddr_;         // Server address
+        std::string                     serverIp_;           // Server IP address
+        std::vector<pollfd>             pollFds_;            // Poll file descriptors
+        std::map<std::string, Channel>  channels_;           // Channel name as key, Channel as value
+        std::map<int,Client>            clients_;            // socket as key, Client as value
+        bool                            isRunning_;          // Server running flag  
+        std::unique_ptr<Bot>            bot_;
 
-        // Command storage
+        // Command storage / O(1), cmds are string, value is a function pointer (arg1, arg2)
         std::unordered_map<std::string, std::function<void(int, std::string const&)>> commandMap_;
 
         // Signal methods
@@ -75,13 +75,11 @@ class Server
         void        cmdMode(int clientSocket, std::string const& params);
         void        cmdPart(int clientSocket, std::string const& params);
         void        validateParams(int clientSocket, const std::string& params, const std::string& command);
-        
-
-        // Utils commands
         void        connectClient(int clientSocket);
         void        removeClient(int clientSocket);
         std::string getSPass() const;
         int         findClientByNick(const std::string& nick);
+        bool        setupServerSocket(int& serverSocket, const sockaddr_in& addr);
         
         // Pars Input
         bool        parseInput(Client& client, std::string const& message);
@@ -92,18 +90,18 @@ class Server
         ~Server();
         
         void       start();
+        void       cleanupExit();
         void       acceptClient(std::vector<pollfd>& pollFds_);
         void       handleClient(Client& client);
         void       sendToClient(int clientSocket, std::string const& message);
         void       sendMsgToChannel(int clientSocket, const std::string& recipient, const std::string& message);
-
-        static Server* instance; // static pointer to the server instance
-        static void sSignalHandler(int signum); // static warp for signal handler
+       
+        // signal handler
+        static Server* instance;
+        static void sSignalHandler(int signum); 
 
         void        welcomeClient(int clientSocket); 
         void        pingClients();
-
-        //welcom ascii
         void        asciiArt();
 };
 

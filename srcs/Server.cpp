@@ -8,51 +8,89 @@ Server::Server(int port, std::string const& password)
     serverSocket_ = -1;
     serverIp_ = "nop";
     isRunning_ = true;
-    instance = this; // to be able to use in signal handler
+    instance = this;
     bot_ = std::make_unique<Bot>();
 
-    serverSocket_ = socket(AF_INET, SOCK_STREAM, 0);     //setup server address
-    if (serverSocket_ < 0)
-        printInfoToServer(ERROR, "Socket creation failed!", true);
-
-    int opt = 1;
-    if (setsockopt(serverSocket_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
-        printInfoToServer(ERROR, "Failed to set socket options!", true);
-
-    // only run in non-blocking mode. to be able to handle multiple clients
-    if (fcntl(serverSocket_, F_SETFL, O_NONBLOCK) < 0) 
-        printInfoToServer(ERROR, "Failed to set socket to non-blocking mode!", true);
-
-    //configure server address
-    //we use ipv4; for ipv6, we would use AF_INET6
     serverAddr_.sin_family = AF_INET;
     serverAddr_.sin_addr.s_addr = INADDR_ANY;
     serverAddr_.sin_port = htons(port_);
-    
-    //bind the socket to the server address
-    if (bind(serverSocket_, (struct sockaddr *)&serverAddr_, sizeof(serverAddr_)) < 0)
-        printInfoToServer(ERROR, "Bind failed!", true);
 
-    //listen for connections
-    if (listen(serverSocket_, MAX_Q_CLIENTS) < 0)
-    printInfoToServer(ERROR, "Listen failed!", true);
+    if (!setupServerSocket(serverSocket_, serverAddr_))
+        printInfoToServer(ERROR, "Failed to setup server socket!", true);
 
     serverIp_ = inet_ntoa(serverAddr_.sin_addr);
-    printInfoToServer(INFO, "Server listening on " + serverIp_ + ":" + std::to_string(port_), false);
     pollFds_.push_back((struct pollfd){serverSocket_, POLLIN, 0});
     setupCmds();
     setupSignalHandler();
+    printInfoToServer(INFO, "Server listening on " + serverIp_ + ":" + std::to_string(port_), false);
+}
+
+bool Server::setupServerSocket(int& serverSocket, const sockaddr_in& addr)
+{
+    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket < 0)
+    {
+        printInfoToServer(ERROR, "Socket creation failed!", true);
+        return false;
+    }
+    int opt = 1;
+    if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+    {
+        printInfoToServer(ERROR, "Failed to set socket options!", true);
+        return false;
+    }
+    if (fcntl(serverSocket, F_SETFL, O_NONBLOCK) < 0)
+    {
+        printInfoToServer(ERROR, "Failed to set socket to non-blocking mode!", true);
+        return false;
+    }
+    if (bind(serverSocket, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
+        printInfoToServer(ERROR, "Bind failed!", true);
+        return false;
+    }
+    if (listen(serverSocket, MAX_Q_CLIENTS) < 0)
+    {
+        printInfoToServer(ERROR, "Listen failed!", true);
+        return false;
+    }
+    return true;
 }
 
 Server::~Server()
 {
+    if (serverSocket_ != -1) 
+    {
+        cleanupExit();
+    }
+}
+
+void Server::cleanupExit()
+{
+    for (auto& [fd, client] : clients_)
+    {
+        try 
+        {
+            send(fd, "Server shutting down...\r\n", 24, 0);
+        }
+        catch (std::exception const& e)
+        {
+            printInfoToServer(ERROR, "Failed to send message to client: " + std::string(e.what()), false);
+        } 
+    }
+    clients_.clear();
     if (serverSocket_ != -1)
+    {
         close(serverSocket_);
+        serverSocket_ = -1;
+    }
     for (auto const& clientFd : pollFds_)
     {
         if (clientFd.fd >= 0)
             close(clientFd.fd);
     }
+    pollFds_.clear();
+    bot_.reset();
     instance = nullptr; // reset the static instance
 }
 
@@ -62,6 +100,7 @@ void Server::start()
     printInfoToServer(INFO, "Waiting for conections...", false);
     while (isRunning_)
     {
+        //poll check all fd and update pollFds_ with the events then deal with them if any 
         if (poll(pollFds_.data(), pollFds_.size(), 0) == -1 && errno != EINTR)
         {
             printInfoToServer(ERROR, "Poll failed!", false);
@@ -74,18 +113,13 @@ void Server::start()
                 if (pollFds_[i].fd == serverSocket_)
                     acceptClient(pollFds_);
                 else
-                {
-                    auto it = clients_.find(pollFds_[i].fd);
-                    if (it != clients_.end())
-                        handleClient(it->second);
-                    else
-                        printInfoToServer(WARNING, "Client not found!", false);
-                }
+                    handleClient(clients_[pollFds_[i].fd]);
             }
         }
         pingClients();
     }
     printInfoToServer(INFO, "Server shutting down...", false);
+    cleanupExit();
 }
 
 void Server::acceptClient(std::vector<pollfd>& pollFds_) 
@@ -105,6 +139,7 @@ void Server::acceptClient(std::vector<pollfd>& pollFds_)
         return printInfoToServer(WARNING, "Max clients reached, closing connection.", false);
     }
     std::string clientIp = inet_ntoa(clientAddr.sin_addr);
+    // if successful, add client to pollFds and create new clients
     pollFds_.push_back({ clientSocket, POLLIN, 0 });
     clients_.emplace(clientSocket, Client(clientIp, clientSocket));
     printInfoToServer(CONNECTION, "Client connected from " + clientIp + " on socket " + std::to_string(clientSocket), false);
@@ -124,6 +159,7 @@ void Server::handleClient(Client& client)
         removeClient(client.getSocket());
         return;
     }
+    // if successful, append buffer to client's receive buffer and process it
     buffer[bytesRead] = '\0';
     client.appendToReceiveBuffer(buffer, bytesRead);
     connectClient(client.getSocket());
