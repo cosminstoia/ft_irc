@@ -43,13 +43,11 @@ class Client
         void setUserName(const std::string& userName) { userName_ = userName; }
         void setNickName(const std::string& nickName) { nickName_ = nickName; }
         void setPassword(const std::string& password) { clientPassword_ = password; }
-        void setBuffer(const std::string& buffer) { receiveBuffer_ = buffer; }
         const std::string& getUserName() const { return userName_; }
         const std::string& getNickName() const { return nickName_; }
         const std::string& getPassword() const { return clientPassword_; }
         const std::string& getBuffer() const { return receiveBuffer_; }
         const int& getSocket() const { return socket_; }
-        const int& getBytes() const { return bytes_; }
         void joinChannel(const std::string& channel) { joinedChannels_.insert(channel); }
         void leaveChannel(const std::string& channel) { joinedChannels_.erase(channel); }
         const std::string& getIpAddr() const { return ipAddress_; }
@@ -57,17 +55,8 @@ class Client
         const std::string& getRealName() const { return realName_; }
         
         // ping pong mechanism
-        void updatePongReceived() { lastPong_ = std::chrono::system_clock::now(); awaitingPong_ = false; }
-        void setPingSent() { lastPing_ = std::chrono::system_clock::now(); awaitingPong_ = true; }
-        bool needsPing() const 
-        {
-            auto now = std::chrono::system_clock::now();
-            return !awaitingPong_ && 
-               std::chrono::duration_cast<std::chrono::seconds>(now - lastPing_).count() >= PING_INTERVAL;
-        }
-        bool hasTimedOut() const 
-        {
-            auto now = std::chrono::system_clock::now();
-            return std::chrono::duration_cast<std::chrono::seconds>(now - lastPong_).count() >= PING_TIMEOUT;
-        }
+        void updatePongReceived();
+        void setPingSent();
+        bool needsPing() const;
+        bool hasTimedOut() const;
 };

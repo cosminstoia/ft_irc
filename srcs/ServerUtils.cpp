@@ -6,11 +6,10 @@ void Server::connectClient(int clientSocket)
     Client& client = clients_[clientSocket];
     size_t pos = 0;
     // std::cout << "[DEBUG] Client buffer: " << client.getBuffer() << std::endl;
-	while ((pos = client.getBuffer().find("\r\n")) != std::string::npos) 
+	while ((pos = client.getReceiveBuffer().find("\r\n")) != std::string::npos) 
     {
-		std::string message = client.getBuffer().substr(0, pos);
-		std::string buffer = client.getBuffer();
-        client.setBuffer(buffer.erase(0, pos + 2));
+		std::string message = client.getReceiveBuffer().substr(0, pos);
+        client.getReceiveBuffer().erase(0, pos + 2);
         // std::cout << "[DEBUG] Parsed message: " << message << std::endl;
         if(!parseInput(client, message)) 
             return printInfoToServer(ERROR, "Error parsing message: " + message, false);
@@ -51,7 +50,7 @@ void Server::sendToClient(int clientSocket, std::string const& message)
 {
     std::string fullMessage = message + "\r\n";
     ssize_t bytesSend = send(clientSocket, fullMessage.c_str(), fullMessage.length(), 0);
-    // std::cout << "Message sent: " << message << std::endl;
+    // std::cout << "[DEBUG] Message sent: " << message << std::endl;
     if (bytesSend < 0)
     {
         std::cout << fullMessage << std::endl;
@@ -63,7 +62,6 @@ std::string Server::getSPass() const
 {
     return password_;
 }
-
 
 void Server::asciiArt()
 {

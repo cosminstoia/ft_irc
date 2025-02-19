@@ -31,3 +31,27 @@ bool Client::operator==(const Client& other) const
 
 Client::~Client()
 {}
+
+// ping pong mechanism
+void Client::updatePongReceived()
+{
+  lastPong_ = std::chrono::system_clock::now();
+  awaitingPong_ = false;
+}
+
+void Client::setPingSent()
+{
+  lastPing_ = std::chrono::system_clock::now();
+  awaitingPong_ = true;
+}
+bool Client::needsPing() const 
+{
+  auto now = std::chrono::system_clock::now();
+  return !awaitingPong_ && std::chrono::duration_cast<std::chrono::seconds>(now - lastPing_).count() >= PING_INTERVAL;
+}
+
+bool Client::hasTimedOut() const 
+{
+  auto now = std::chrono::system_clock::now();
+  return std::chrono::duration_cast<std::chrono::seconds>(now - lastPong_).count() >= PING_TIMEOUT;
+}

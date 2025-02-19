@@ -14,11 +14,15 @@ class Channel
         void removeOperator(int socket) { operators_.erase(socket); }
         bool isMember(int socket) const { return members_.find(socket) != members_.end(); }
         bool isOperator(int socket) { return operators_.find(socket) != operators_.end(); }
+
+        // Getters and setters
         void setTopic(const std::string& newTopic) { topic_ = newTopic; }
         std::string const& getTopic() const { return topic_; }
         std::string const& getName() const { return name_; }
         std::set<int> const& getMembers() const { return members_; }
         std::set<int> const& getOperators() const { return operators_; }
+
+        // Channel modes
         bool isTopicRestricted() const { return topicRestricted_; }
         void topicRestricted(bool restricted) { topicRestricted_ = restricted; }
         std::string const& getPassword() const { return password_; }
@@ -26,8 +30,8 @@ class Channel
         void setUserLimit(int limit) { userLimit_ = limit; }
         int getUserLimit() const { return userLimit_; }
         bool isFull() const { return members_.size() >= static_cast<size_t>(userLimit_); }
-        void removeClient(int socket) { members_.erase(socket); }
-        bool isClientInChannel(int socket) const { return members_.find(socket) != members_.end(); }
+
+        // Invite functionality
         bool isInviteOnly() const { return isInviteOnly_; }
         void setInviteOnly(bool inviteOnly) { isInviteOnly_ = inviteOnly; }
         void addInvite(int socket) { inviteList_.insert(socket); }
@@ -43,5 +47,5 @@ class Channel
         bool isInviteOnly_ = false;
         bool topicRestricted_ = false;
         int userLimit_ = USER_LIMIT_CHANNEL;
-        std::set<int> inviteList_; // List of clients invited to the channel
+        std::set<int> inviteList_;
 };

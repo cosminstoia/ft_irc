@@ -23,10 +23,8 @@ void printInfoToServer(messageType type, std::string const& msg, bool exitP)
         case PRIVMSG: typeStr = "CLIENT"; color = LIGHT_MAGENTA; break;
         default:        typeStr = "UNKNOWN";    color = RESET; break;
     }
-
     std::cout << color << "[" << typeStr << "]" << GRAY " [" << oss.str() << "] "
                 << RESET << msg << std::endl;
     if(typeStr == "ERROR" && exitP)
         exit(1);
-
 }

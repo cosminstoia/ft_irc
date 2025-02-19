@@ -1,6 +1,4 @@
 #include "Server.hpp"
-//#include "Client.hpp"
-#include <iostream>
 
 bool checkArgs(int ac, char*av[], int& port, std::string& pass)
 {

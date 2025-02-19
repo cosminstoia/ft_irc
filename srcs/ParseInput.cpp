@@ -115,8 +115,8 @@ bool Server::parseInitialInput(Client& client, const std::string command, std::s
         if (parameters != password_)
         {
             sendToClient(client.getSocket(), ERR_PASSWDMISMATCH(serverIp_));
-            printInfoToServer(INFO, "Client introduced wrong password.", false);
-            usleep(100000); // 100ms for message to be sent
+            printInfoToServer(INFO, "Client introduced wrong password!", false);
+            usleep(100000);
             clients_.erase(client.getSocket());
             close(client.getSocket());
             return false;

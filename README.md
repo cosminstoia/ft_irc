@@ -16,13 +16,11 @@ A port is a numerical identifier in the range of 0 to 65535 that is used to spec
 
 
 ## Features
-
 - Supports multiple clients
 - Channel management
 - Ping-pong mechanism for connection stability
 
 ## Requirements
-
 - C++ compiler (e.g., g++)
 - Make (for building the project)
 
@@ -32,8 +30,6 @@ cd it
 make
 ./ircserv <port> <pass>
 
-
-
 ## no client test
 nc -c localhost <port> [enter]
 PASS password [enter]
@@ -41,10 +37,9 @@ NICK test [enter]
 USER testuser hostname servername :Real Name [enter] 
 [you shuld see a confirmation adn be able to use commands]
 
-
 #using irssi
 brew install irssi
 cp config ~/.issi/config
 irssi -c <host> -p <port> -w <pass>
 
-/mode #channel +i/-i ....
+/mode #channel +i/

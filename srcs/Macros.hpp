@@ -29,12 +29,21 @@
 #define RPL_NOTOPIC(server, nick, channel) (":" + server + " 331 " + nick + " " + channel + " :No topic is set")
 #define RPL_TOPIC(server, nick, channel, topic) (":" + server + " 332 " + nick + " " + channel + " :" + topic)
 #define RPL_INVITE(server, nick, target, channel) (":" + server + " 341 " + nick + " " + target + " " + channel)
-#define RPL_MODE(server, channel, mode, params) (":" + server + " 324 " + channel + " " + mode + " " + params)
 
 #define RPL_PART(nick, user, host, channel) (":" + nick + "!" + user + "@" + host + " PART " + channel + " :has left the channel")
 #define RPL_JOIN(server, nick, channel) (":" + nick + "!" + nick + "@" + server + " JOIN " + channel)
 #define RPL_PRIVMSG(server, nick, recipient, message) (":" + nick + "!" + nick + "@" + server + " PRIVMSG " + recipient + " " + message)
-#define RPL_QUIT(nick, user, host) (":" + nick + "!" + user + "@" + host + " QUIT :Client Quit")
+#define RPL_QUIT(nick, user, host, message) (":" + nick + "!" + user + "@" + host + " QUIT :Client " + message)
+#define RPL_SERVERMODE(server, channel, mode, nick) (":" + server + " MODE " + channel + " " + mode + " " + nick)
+#define RPL_YOUROP "You're now channel operator"
+#define RPL_USERHOST(nick, username, server) (":" + nick + "!" + username + "@" + server)
+#define RPL_PRIVMSGFORMAT(sender, target, message) (":" + sender + " PRIVMSG " + target + " :" + message)
+#define RPL_KICKFORMAT(userhost, channel, target, reason) (userhost + " KICK " + channel + " " + target + " :" + reason)
+#define RPL_INVITEFORMAT(userhost, target, channel) (userhost + " INVITE " + target + " :" + channel)
+#define RPL_MODEFORMAT(userhost, target, mode) (userhost + " MODE " + target + " " + mode)
+#define RPL_MODEFORMAT_PARAM(userhost, target, mode, param) (userhost + " MODE " + target + " " + mode + " " + param)
+#define INFO_PRIVMSG_SENT(recipient, sender) ("PRIVMSG sent to " + recipient + " from " + sender)
+#define INFO_INVITE_SENT(sender, target, channel) (sender + " invited " + target + " to " + channel)
 
 // ERROR MESSAGES
 #define ERR_NOSUCHNICK(server, nick) (":" + server + " 401 " + nick + " :No such nick/channel")
